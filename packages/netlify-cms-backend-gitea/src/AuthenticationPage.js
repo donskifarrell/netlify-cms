@@ -79,8 +79,8 @@ export default class GiteaAuthenticationPage extends React.Component {
         siteUrl={config.site_url}
         renderButtonContent={() => (
           <React.Fragment>
-            <LoginButtonIcon type="gitea" />{' '}
-            {inProgress ? t('auth.loggingIn') : t('auth.loginWithGitLab')}
+            <LoginButtonIcon type="chevron" />{' '}
+            {inProgress ? "Logging In" : "Login With Gitea"}
           </React.Fragment>
         )}
         t={t}

@@ -159,15 +159,19 @@ export default class Gitea implements Implementation {
     depth: number,
   ) {
     // gitea paths include the root folder
+    console.log(folder, file, extension, depth)
     const fileFolder = trim(file.path.split(folder)[1] || '/', '/');
     return filterByExtension(file, extension) && fileFolder.split('/').length <= depth;
   }
 
   async entriesByFolder(folder: string, extension: string, depth: number) {
     let cursor: Cursor;
+    console.log("entriesByFolder")
 
     const listFiles = () =>
       this.api!.listFiles(folder, depth > 1).then(({ files, cursor: c }) => {
+
+        console.log("listFiles", folder, files, extension, depth)
         cursor = c.mergeMeta({ folder, extension, depth });
         return files.filter(file => this.filterFile(folder, file, extension, depth));
       });
@@ -186,6 +190,8 @@ export default class Gitea implements Implementation {
 
   async listAllFiles(folder: string, extension: string, depth: number) {
     const files = await this.api!.listAllFiles(folder, depth > 1);
+
+    console.log("listAllFiles", folder, files, extension, depth)
     const filtered = files.filter(file => this.filterFile(folder, file, extension, depth));
     return filtered;
   }

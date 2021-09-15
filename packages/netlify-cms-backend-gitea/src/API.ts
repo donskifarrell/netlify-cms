@@ -116,6 +116,20 @@ type GiteaPullRequest = {
   id: number;
   iid: number;
   title: string;
+  base: {
+    label: string;
+    ref: string;
+    repo: GiteaRepo;
+    repo_id: number;
+    sha: string;
+  }
+  head: {
+    label: string;
+    ref: string;
+    repo: GiteaRepo;
+    repo_id: number;
+    sha: string;
+  }
   description: string;
   state: string;
   merged_by: {
@@ -136,10 +150,10 @@ type GiteaPullRequest = {
 };
 
 type GiteaRepo = {
-  shared_with_groups: { group_access_level: number }[] | null;
   permissions: {
-    project_access: { access_level: number } | null;
-    group_access: { access_level: number } | null;
+    admin: boolean,
+    pull: boolean,
+    push: boolean,
   };
 };
 
@@ -171,15 +185,6 @@ type GiteaCommit = {
   message: string;
 };
 
-export const getMaxAccess = (groups: { group_access_level: number }[]) => {
-  return groups.reduce((previous, current) => {
-    if (current.group_access_level > previous.group_access_level) {
-      return current;
-    }
-    return previous;
-  }, groups[0]);
-};
-
 export default class API {
   apiRoot: string;
   token: string | boolean;
@@ -197,7 +202,7 @@ export default class API {
     this.token = config.token || false;
     this.branch = config.branch || 'master';
     this.repo = config.repo || '';
-    this.repoURL = `/projects/${encodeURIComponent(this.repo)}`;
+    this.repoURL = `/repos/${this.repo}`;
     this.squashMerges = config.squashMerges;
     this.initialWorkflowStatus = config.initialWorkflowStatus;
     this.cmsLabelPrefix = config.cmsLabelPrefix;
@@ -241,42 +246,19 @@ export default class API {
 
   user = () => this.requestJSON('/user');
 
-  WRITE_ACCESS = 30;
-  MAINTAINER_ACCESS = 40;
-
   hasWriteAccess = async () => {
     const {
-      shared_with_groups: sharedWithGroups,
       permissions,
     }: GiteaRepo = await this.requestJSON(this.repoURL);
 
-    const { project_access: projectAccess, group_access: groupAccess } = permissions;
-    if (projectAccess && projectAccess.access_level >= this.WRITE_ACCESS) {
+    const { admin, push } = permissions;
+    if (admin) {
       return true;
     }
-    if (groupAccess && groupAccess.access_level >= this.WRITE_ACCESS) {
+    if (push) {
       return true;
     }
-    // check for group write permissions
-    if (sharedWithGroups && sharedWithGroups.length > 0) {
-      const maxAccess = getMaxAccess(sharedWithGroups);
-      // maintainer access
-      if (maxAccess.group_access_level >= this.MAINTAINER_ACCESS) {
-        return true;
-      }
-      // developer access
-      if (maxAccess.group_access_level >= this.WRITE_ACCESS) {
-        // check permissions to merge and push
-        try {
-          const branch = await this.getDefaultBranch();
-          if (branch.developers_can_merge && branch.developers_can_push) {
-            return true;
-          }
-        } catch (e) {
-          console.log('Failed getting default branch', e);
-        }
-      }
-    }
+
     return false;
   };
 
@@ -286,12 +268,16 @@ export default class API {
     { parseText = true, branch = this.branch } = {},
   ): Promise<string | Blob> => {
     const fetchContent = async () => {
-      const content = await this.request({
-        url: `${this.repoURL}/repository/files/${encodeURIComponent(path)}/raw`,
+      const file = await this.request({
+        url: `${this.repoURL}/contents/${encodeURIComponent(path)}`,
         params: { ref: branch },
         cache: 'no-store',
-      }).then<Blob | string>(parseText ? this.responseToText : this.responseToBlob);
-      return content;
+      }).then<any>(parseText ? this.responseToText : this.responseToBlob);
+      console.log("readFile", file.content)
+      
+      const json = JSON.parse(file)
+      console.log("readFile json only", json)
+      return this.fromBase64(json.content);
     };
 
     const content = await readFile(sha, fetchContent, localForage, parseText);
@@ -302,7 +288,7 @@ export default class API {
     const fetchFileMetadata = async () => {
       try {
         const result: GiteaCommit[] = await this.requestJSON({
-          url: `${this.repoURL}/repository/commits`,
+          url: `${this.repoURL}/commits`,
           // eslint-disable-next-line @typescript-eslint/camelcase
           params: { path, ref_name: this.branch },
         });
@@ -362,6 +348,7 @@ export default class API {
         Promise.all([
           p.then(this.getCursor),
           p.then(this.responseToJSON).catch((e: FetchError) => {
+            console.log("DELETE: json response list files:", e)
             if (e.status === 404) {
               return [];
             } else {
@@ -369,38 +356,45 @@ export default class API {
             }
           }),
         ]),
-      then(([cursor, entries]: [Cursor, {}[]]) => ({ cursor, entries })),
+      then(([cursor, entries]: [Cursor, {}[]]) => {
+        const ents = entries.map((ent: any) => ({ ...ent, id: ent.sha}))
+        return { cursor, entries: ents }
+      }),
     ])(req);
 
   listFiles = async (path: string, recursive = false) => {
+    console.log("DELETE: API > listFiles")
     const { entries, cursor } = await this.fetchCursorAndEntries({
-      url: `${this.repoURL}/repository/tree`,
-      params: { path, ref: this.branch, recursive },
+      url: `${this.repoURL}/contents/${encodeURIComponent(path)}`,
+      params: { ref: this.branch, recursive },
     });
     return {
-      files: entries.filter(({ type }) => type === 'blob'),
+      files: entries.filter(({ type }) => type === 'file'),
       cursor,
     };
   };
 
   traverseCursor = async (cursor: Cursor, action: string) => {
+    console.log("DELETE: API > traverseCursor")
     const link = cursor.data!.getIn(['links', action]);
     const { entries, cursor: newCursor } = await this.fetchCursorAndEntries(link);
     return {
-      entries: entries.filter(({ type }) => type === 'blob'),
+      entries: entries.filter(({ type }) => type === 'file'),
       cursor: newCursor,
     };
   };
 
   listAllFiles = async (path: string, recursive = false, branch = this.branch) => {
+    console.log("DELETE: API > listAllFiles", `${this.repoURL}/contents/${encodeURIComponent(path)}`)
     const entries = [];
     // eslint-disable-next-line prefer-const
-    let { cursor, entries: initialEntries } = await this.fetchCursorAndEntries({
-      url: `${this.repoURL}/repository/tree`,
+    let {entries: initialEntries, cursor } = await this.fetchCursorAndEntries({
+      url: `${this.repoURL}/contents/${encodeURIComponent(path)}`,
       // Get the maximum number of entries per page
       // eslint-disable-next-line @typescript-eslint/camelcase
-      params: { path, ref: branch, per_page: 100, recursive },
+      params: { ref: branch, per_page: 100, recursive },
     });
+    console.log({ cursor, initialEntries })
     entries.push(...initialEntries);
     while (cursor && cursor.actions!.has('next')) {
       const link = cursor.data!.getIn(['links', 'next']);
@@ -408,7 +402,7 @@ export default class API {
       entries.push(...newEntries);
       cursor = newCursor;
     }
-    return entries.filter(({ type }) => type === 'blob');
+    return entries.filter(({ type }) => type === 'file');
   };
 
   toBase64 = (str: string) => Promise.resolve(Base64.encode(str));
@@ -416,7 +410,7 @@ export default class API {
 
   async getBranch(branchName: string) {
     const branch: GiteaBranch = await this.requestJSON(
-      `${this.repoURL}/repository/branches/${encodeURIComponent(branchName)}`,
+      `${this.repoURL}/branches/${encodeURIComponent(branchName)}`,
     );
     return branch;
   }
@@ -454,7 +448,7 @@ export default class API {
 
     try {
       const result = await this.requestJSON({
-        url: `${this.repoURL}/repository/commits`,
+        url: `${this.repoURL}/commits`,
         method: 'POST',
         headers: { 'Content-Type': 'application/json; charset=utf-8' },
         body: JSON.stringify(commitParams),
@@ -551,7 +545,7 @@ export default class API {
       url: `${this.repoURL}/pulls`,
       params: {
         state: 'opened',
-        labels: 'Any',
+        // labels: [],
         // eslint-disable-next-line @typescript-eslint/camelcase
         target_branch: this.branch,
         // eslint-disable-next-line @typescript-eslint/camelcase
@@ -561,7 +555,7 @@ export default class API {
 
     return pullRequests.filter(
       mr =>
-        mr.source_branch.startsWith(CMS_BRANCH_PREFIX) &&
+        mr.base.ref.startsWith(CMS_BRANCH_PREFIX) &&
         mr.labels.some(l => isCMSLabel(l, this.cmsLabelPrefix)),
     );
   }
@@ -581,18 +575,18 @@ export default class API {
   async getFileId(path: string, branch: string) {
     const request = await this.request({
       method: 'HEAD',
-      url: `${this.repoURL}/repository/files/${encodeURIComponent(path)}`,
+      url: `${this.repoURL}/contents/${encodeURIComponent(path)}`,
       params: { ref: branch },
     });
 
-    const blobId = request.headers.get('X-Gitlab-Blob-Id') as string;
+    const blobId = request.headers.get('X-Gitea-Blob-Id') as string;
     return blobId;
   }
 
   async isFileExists(path: string, branch: string) {
     const fileExists = await this.requestText({
       method: 'HEAD',
-      url: `${this.repoURL}/repository/files/${encodeURIComponent(path)}`,
+      url: `${this.repoURL}/contents/${encodeURIComponent(path)}`,
       params: { ref: branch },
     })
       .then(() => true)
@@ -620,6 +614,7 @@ export default class API {
       return [];
     }
     const result: { diffs: GiteaCommitDiff[] } = await this.requestJSON({
+      // TODO: maybe /repos/{owner}/{repo}/pulls/{index}.diff ?
       url: `${this.repoURL}/repository/compare`,
       params: {
         from,
@@ -678,14 +673,14 @@ export default class API {
   async rebasePullRequest(pullRequest: GiteaPullRequest) {
     let rebase: GiteaMergeRebase = await this.requestJSON({
       method: 'PUT',
-      url: `${this.repoURL}/pull/${pullRequest.iid}/rebase`,
+      url: `${this.repoURL}/pulls/${pullRequest.iid}/rebase`,
     });
 
     let i = 1;
     while (rebase.rebase_in_progress) {
       await new Promise(resolve => setTimeout(resolve, 1000));
       rebase = await this.requestJSON({
-        url: `${this.repoURL}/pull/${pullRequest.iid}`,
+        url: `${this.repoURL}/pulls/${pullRequest.iid}`,
         params: {
           // eslint-disable-next-line @typescript-eslint/camelcase
           include_rebase_in_progress: true,
@@ -767,7 +762,7 @@ export default class API {
   async updatePullRequestLabels(pullRequest: GiteaPullRequest, labels: string[]) {
     await this.requestJSON({
       method: 'PUT',
-      url: `${this.repoURL}/pull/${pullRequest.iid}`,
+      url: `${this.repoURL}/pulls/${pullRequest.iid}`,
       params: {
         labels: labels.join(','),
       },
@@ -789,7 +784,7 @@ export default class API {
   async mergePullRequest(pullRequest: GiteaPullRequest) {
     await this.requestJSON({
       method: 'PUT',
-      url: `${this.repoURL}/pull/${pullRequest.iid}/merge`,
+      url: `${this.repoURL}/pulls/${pullRequest.iid}/merge`,
       params: {
         // eslint-disable-next-line @typescript-eslint/camelcase
         merge_commit_message: MERGE_COMMIT_MESSAGE,
@@ -827,7 +822,7 @@ export default class API {
 
   async isShaExistsInBranch(branch: string, sha: string) {
     const refs: GiteaCommitRef[] = await this.requestJSON({
-      url: `${this.repoURL}/repository/commits/${sha}/refs`,
+      url: `${this.repoURL}/commits/${sha}/refs`,
       params: {
         type: 'branch',
       },
@@ -838,7 +833,7 @@ export default class API {
   async deleteBranch(branch: string) {
     await this.request({
       method: 'DELETE',
-      url: `${this.repoURL}/repository/branches/${encodeURIComponent(branch)}`,
+      url: `${this.repoURL}/branches/${encodeURIComponent(branch)}`,
     });
   }
 
@@ -852,7 +847,7 @@ export default class API {
 
   async getPullRequestStatues(pullRequest: GiteaPullRequest, branch: string) {
     const statuses: GiteaCommitStatus[] = await this.requestJSON({
-      url: `${this.repoURL}/repository/commits/${pullRequest.sha}/statuses`,
+      url: `${this.repoURL}/commits/${pullRequest.sha}/statuses`,
       params: {
         ref: branch,
       },
