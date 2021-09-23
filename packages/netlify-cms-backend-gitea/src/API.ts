@@ -273,10 +273,15 @@ export default class API {
         params: { ref: branch },
         cache: 'no-store',
       }).then<any>(parseText ? this.responseToText : this.responseToBlob);
-      console.log("readFile", file.content)
+      console.log("readFile", file.constructor === Blob, path, file)
       
+      if (file.constructor === Blob) {
+        return file
+      }
+
+      console.log("readFile.content", path, file.content)
       const json = JSON.parse(file)
-      console.log("readFile json only", json)
+      console.log("readFile json only", path, json)
       return this.fromBase64(json.content);
     };
 
@@ -448,7 +453,7 @@ export default class API {
 
     try {
       const result = await this.requestJSON({
-        url: `${this.repoURL}/commits`,
+        url: `${this.repoURL}/contents/${encodeURIComponent(item.path)}`,
         method: 'POST',
         headers: { 'Content-Type': 'application/json; charset=utf-8' },
         body: JSON.stringify(commitParams),
@@ -545,6 +550,7 @@ export default class API {
       url: `${this.repoURL}/pulls`,
       params: {
         state: 'opened',
+        // TODO: https://gitea.brankas.dev/api/swagger#/issue/issueListLabels
         // labels: [],
         // eslint-disable-next-line @typescript-eslint/camelcase
         target_branch: this.branch,
@@ -574,7 +580,6 @@ export default class API {
 
   async getFileId(path: string, branch: string) {
     const request = await this.request({
-      method: 'HEAD',
       url: `${this.repoURL}/contents/${encodeURIComponent(path)}`,
       params: { ref: branch },
     });
@@ -585,7 +590,6 @@ export default class API {
 
   async isFileExists(path: string, branch: string) {
     const fileExists = await this.requestText({
-      method: 'HEAD',
       url: `${this.repoURL}/contents/${encodeURIComponent(path)}`,
       params: { ref: branch },
     })
