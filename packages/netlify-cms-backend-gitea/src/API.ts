@@ -292,10 +292,11 @@ export default class API {
   async readFileMetadata(path: string, sha: string | null | undefined) {
     const fetchFileMetadata = async () => {
       try {
+        console.log("readFileMetadata", path)
         const result: GiteaCommit[] = await this.requestJSON({
-          url: `${this.repoURL}/commits`,
+          url: `${this.repoURL}/contents/${encodeURIComponent(path)}`,
           // eslint-disable-next-line @typescript-eslint/camelcase
-          params: { path, ref_name: this.branch },
+          params: { ref_name: this.branch },
         });
         const commit = result[0];
         return {
@@ -451,14 +452,38 @@ export default class API {
       commitParams.author_email = email;
     }
 
+
+
     try {
-      const result = await this.requestJSON({
-        url: `${this.repoURL}/contents/${encodeURIComponent(item.path)}`,
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json; charset=utf-8' },
-        body: JSON.stringify(commitParams),
-      });
-      return result;
+
+      for (const item of items) {
+        console.log("uploadAndCommit", `contents/${encodeURIComponent(item.path)}`, item)
+        const body = {
+          branch: "master",
+          ...(item.base64Content !== undefined
+            ? { content: item.base64Content, encoding: 'base64' }
+            : {}),
+           // sha // for PUT only
+        }
+
+        const result = await this.requestJSON({
+          url: `${this.repoURL}/contents/${encodeURIComponent(item.path)}`,
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json; charset=utf-8' },
+          body: JSON.stringify(body),
+        });
+        console.log(`contents/${encodeURIComponent(item.path)}`, result)
+      }
+
+
+
+      // const result = await this.requestJSON({
+      //   url: `${this.repoURL}/contents/${encodeURIComponent(item.path)}`,
+      //   method: 'POST',
+      //   headers: { 'Content-Type': 'application/json; charset=utf-8' },
+      //   body: JSON.stringify(commitParams),
+      // });
+      // return result;
     } catch (error) {
       const message = error.message || '';
       if (newBranch && message.includes(`Could not update ${branch}`)) {
