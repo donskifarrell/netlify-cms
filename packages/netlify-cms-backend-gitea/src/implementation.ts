@@ -159,14 +159,14 @@ export default class Gitea implements Implementation {
     depth: number,
   ) {
     // gitea paths include the root folder
-    console.log(folder, file, extension, depth)
+    console.log("filterFile", folder, file, extension, depth)
     const fileFolder = trim(file.path.split(folder)[1] || '/', '/');
     return filterByExtension(file, extension) && fileFolder.split('/').length <= depth;
   }
 
   async entriesByFolder(folder: string, extension: string, depth: number) {
     let cursor: Cursor;
-    console.log("entriesByFolder")
+    console.log("entriesByFolder", folder, extension, depth)
 
     const listFiles = () =>
       this.api!.listFiles(folder, depth > 1).then(({ files, cursor: c }) => {
@@ -185,6 +185,7 @@ export default class Gitea implements Implementation {
     // eslint-disable-next-line @typescript-eslint/ban-ts-ignore
     // @ts-ignore
     files[CURSOR_COMPATIBILITY_SYMBOL] = cursor;
+    console.log("entriesByFolder:files", files)
     return files;
   }
 
@@ -197,6 +198,7 @@ export default class Gitea implements Implementation {
   }
 
   async allEntriesByFolder(folder: string, extension: string, depth: number) {
+    console.log("allEntriesByFolder", folder, extension, depth);
     const files = await allEntriesByFolder({
       listAllFiles: () => this.listAllFiles(folder, extension, depth),
       readFile: this.api!.readFile.bind(this.api!),
@@ -218,6 +220,7 @@ export default class Gitea implements Implementation {
   }
 
   entriesByFiles(files: ImplementationFile[]) {
+    console.log("entriesByFiles", files);
     return entriesByFiles(
       files,
       this.api!.readFile.bind(this.api!),
@@ -228,13 +231,18 @@ export default class Gitea implements Implementation {
 
   // Fetches a single entry.
   getEntry(path: string) {
-    return this.api!.readFile(path).then(data => ({
-      file: { path, id: null },
-      data: data as string,
-    }));
+    console.log("getEntry", path);
+    return this.api!.readFile(path).then(data => {
+      // console.log("getEntry", path, data)
+      return {
+        file: { path, id: null },
+        data: data as string,
+      }
+    });
   }
 
   getMedia(mediaFolder = this.mediaFolder) {
+    console.log("getMedia", mediaFolder);
     return this.api!.listAllFiles(mediaFolder).then(files =>
       files.map(({ id, name, path }) => {
         return { id, name, path, displayURL: { id, name, path } };
@@ -252,6 +260,7 @@ export default class Gitea implements Implementation {
   }
 
   async getMediaFile(path: string) {
+    console.log("getMediaFile", path);
     const name = basename(path);
     const blob = await getMediaAsBlob(path, null, this.api!.readFile.bind(this.api!));
     const fileObj = blobToFileObj(name, blob);
@@ -270,6 +279,7 @@ export default class Gitea implements Implementation {
   }
 
   async persistEntry(entry: Entry, options: PersistOptions) {
+    console.log("persistEntry", entry)
     // persistEntry is a transactional operation
     return runWithLock(
       this.lock,
@@ -280,7 +290,7 @@ export default class Gitea implements Implementation {
 
   async persistMedia(mediaFile: AssetProxy, options: PersistOptions) {
     const fileObj = mediaFile.fileObj as File;
-
+    console.log("persistMedia", mediaFile, getBlobSHA(fileObj))
     const [id] = await Promise.all([
       getBlobSHA(fileObj),
       this.api!.persistFiles([], [mediaFile], options),

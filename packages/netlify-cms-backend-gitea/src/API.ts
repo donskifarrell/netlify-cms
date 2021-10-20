@@ -61,6 +61,7 @@ type CommitItem = {
   path: string;
   oldPath?: string;
   action: CommitAction;
+  sha?: string;
 };
 
 interface CommitsParams {
@@ -185,6 +186,11 @@ type GiteaCommit = {
   message: string;
 };
 
+// type ReadFile = {
+//   sha?: string  | null,
+//   content: string | Blob,
+// }
+
 export default class API {
   apiRoot: string;
   token: string | boolean;
@@ -260,6 +266,20 @@ export default class API {
     }
 
     return false;
+  };
+
+  getFile = async (
+    path: string,
+    { branch = this.branch } = {},
+  ): Promise<any> => {
+    const file = await this.requestJSON({
+      url: `${this.repoURL}/contents/${encodeURIComponent(path)}`,
+      params: { ref: branch },
+      cache: 'no-store',
+    });
+    console.log("getFile", file.constructor === Blob, path, file)
+    
+    return file
   };
 
   readFile = async (
@@ -391,7 +411,7 @@ export default class API {
   };
 
   listAllFiles = async (path: string, recursive = false, branch = this.branch) => {
-    console.log("DELETE: API > listAllFiles", `${this.repoURL}/contents/${encodeURIComponent(path)}`)
+    console.log("listAllFiles", `${this.repoURL}/contents/${encodeURIComponent(path)}`)
     const entries = [];
     // eslint-disable-next-line prefer-const
     let {entries: initialEntries, cursor } = await this.fetchCursorAndEntries({
@@ -400,7 +420,7 @@ export default class API {
       // eslint-disable-next-line @typescript-eslint/camelcase
       params: { ref: branch, per_page: 100, recursive },
     });
-    console.log({ cursor, initialEntries })
+    console.log("listAllFiles", { cursor, initialEntries })
     entries.push(...initialEntries);
     while (cursor && cursor.actions!.has('next')) {
       const link = cursor.data!.getIn(['links', 'next']);
@@ -457,13 +477,21 @@ export default class API {
     try {
 
       for (const item of items) {
-        console.log("uploadAndCommit", `contents/${encodeURIComponent(item.path)}`, item)
+        let itemSha = ""
+        if (!item.sha) {
+          const file = await this.getFile(item.path)
+          console.log("uploadAndCommit:getFile", file)
+          console.log("uploadAndCommit:getFile:sha", file.sha)
+          itemSha = file.sha
+        }
+
+        console.log("uploadAndCommit", `contents/${encodeURIComponent(item.path)}`, item, itemSha)
         const body = {
           branch: "master",
+          sha: itemSha,
           ...(item.base64Content !== undefined
             ? { content: item.base64Content, encoding: 'base64' }
             : {}),
-           // sha // for PUT only
         }
 
         const result = await this.requestJSON({
@@ -472,7 +500,7 @@ export default class API {
           headers: { 'Content-Type': 'application/json; charset=utf-8' },
           body: JSON.stringify(body),
         });
-        console.log(`contents/${encodeURIComponent(item.path)}`, result)
+        console.log("uploadAndCommit:requestJSON", `contents/${encodeURIComponent(item.path)}`, result)
       }
 
 
@@ -543,9 +571,11 @@ export default class API {
     const files = [...dataFiles, ...mediaFiles];
     if (options.useWorkflow) {
       const slug = dataFiles[0].slug;
+      console.log("persistFiles:useWorkflow", slug, files)
       return this.editorialWorkflowGit(files, slug, options);
     } else {
       const items = await this.getCommitItems(files, this.branch);
+      console.log("persistFiles:uploadAndCommit", items)
       return this.uploadAndCommit(items, {
         commitMessage: options.commitMessage,
       });
@@ -565,6 +595,7 @@ export default class API {
     }
 
     const items = paths.map(path => ({ path, action: CommitAction.DELETE }));
+    console.log("deleteFiles:uploadAndCommit", items)
     return this.uploadAndCommit(items, {
       commitMessage,
     });
@@ -731,20 +762,29 @@ export default class API {
   async createPullRequest(branch: string, commitMessage: string, status: string) {
     await this.requestJSON({
       method: 'POST',
+      headers: { 'Content-Type': 'application/json; charset=utf-8' },
       url: `${this.repoURL}/pulls`,
+
       params: {
-        // eslint-disable-next-line @typescript-eslint/camelcase
-        source_branch: branch,
-        // eslint-disable-next-line @typescript-eslint/camelcase
-        target_branch: this.branch,
+        base: ,
+        body: DEFAULT_PR_BODY,
         title: commitMessage,
-        description: DEFAULT_PR_BODY,
-        labels: statusToLabel(status, this.cmsLabelPrefix),
-        // eslint-disable-next-line @typescript-eslint/camelcase
-        remove_source_branch: true,
-        squash: this.squashMerges,
+        head: ,
+        labels: [5], // TODO: hardcoded. make dynamic
       },
-    });
+      // params: {
+      //   // eslint-disable-next-line @typescript-eslint/camelcase
+      //   source_branch: branch,
+      //   // eslint-disable-next-line @typescript-eslint/camelcase
+      //   target_branch: this.branch,
+      //   title: commitMessage,
+      //   description: DEFAULT_PR_BODY,
+      //   labels: statusToLabel(status, this.cmsLabelPrefix),
+      //   // eslint-disable-next-line @typescript-eslint/camelcase
+      //   remove_source_branch: true,
+      //   squash: this.squashMerges,
+      // },
+    } as any);
   }
 
   async editorialWorkflowGit(
@@ -757,6 +797,7 @@ export default class API {
     const unpublished = options.unpublished || false;
     if (!unpublished) {
       const items = await this.getCommitItems(files, this.branch);
+      console.log("editorialWorkflowGit:uploadAndCommit", items, branch)
       await this.uploadAndCommit(items, {
         commitMessage: options.commitMessage,
         branch,
@@ -781,6 +822,7 @@ export default class API {
         }
       }
 
+      console.log("editorialWorkflowGit:uploadAndCommit:unpublished", items, branch)
       await this.uploadAndCommit(items, {
         commitMessage: options.commitMessage,
         branch,
