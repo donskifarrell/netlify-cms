@@ -7,6 +7,8 @@
   "resolved" "https://registry.npmjs.org/@babel/cli/-/cli-7.14.8.tgz"
   "version" "7.14.8"
   dependencies:
+    "@nicolo-ribaudo/chokidar-2" "2.1.8-no-fsevents.2"
+    "chokidar" "^3.4.0"
     "commander" "^4.0.1"
     "convert-source-map" "^1.1.0"
     "fs-readdir-recursive" "^1.1.0"
@@ -5594,6 +5596,7 @@
     "anymatch" "^2.0.0"
     "async-each" "^1.0.1"
     "braces" "^2.3.2"
+    "fsevents" "^1.2.7"
     "glob-parent" "^3.1.0"
     "inherits" "^2.0.3"
     "is-binary-path" "^1.0.0"
@@ -5613,6 +5616,7 @@
     "anymatch" "^2.0.0"
     "async-each" "^1.0.1"
     "braces" "^2.3.2"
+    "fsevents" "^1.2.7"
     "glob-parent" "^3.1.0"
     "inherits" "^2.0.3"
     "is-binary-path" "^1.0.0"
@@ -5631,6 +5635,7 @@
   dependencies:
     "anymatch" "~3.1.2"
     "braces" "~3.0.2"
+    "fsevents" "~2.3.2"
     "glob-parent" "~5.1.2"
     "is-binary-path" "~2.1.0"
     "is-glob" "~4.0.1"
@@ -5743,6 +5748,7 @@
   "resolved" "https://registry.npmjs.org/cli-table3/-/cli-table3-0.5.1.tgz"
   "version" "0.5.1"
   dependencies:
+    "colors" "^1.1.2"
     "object-assign" "^4.1.0"
     "string-width" "^2.1.1"
   optionalDependencies:
@@ -7537,6 +7543,7 @@
     "estraverse" "^5.2.0"
     "esutils" "^2.0.2"
     "optionator" "^0.8.1"
+    "source-map" "~0.6.1"
   optionalDependencies:
     "source-map" "~0.6.1"
 
@@ -8733,6 +8740,11 @@
   dependencies:
     "ini" "^1.3.2"
 
+"gitdiff-parser@^0.2.2":
+  "integrity" "sha512-iUE5gWohbUm+hogg9c1Gg/pDoDyGlC15hTdsnW7AqZw9+F9mYAxfnMNDstFxuF+qjiZot2s+3L+K9CLdw1ttvA=="
+  "resolved" "https://registry.npmjs.org/gitdiff-parser/-/gitdiff-parser-0.2.2.tgz"
+  "version" "0.2.2"
+
 "gitlab@^14.1.1":
   "integrity" "sha512-MVLGXLFk5erJCeDnDtV+srDHogadVV8y94G4mAulukCwdCwh+IUqsU4ESZksZvBis8VTJsK9Mj01lRJ1JrxVsg=="
   "resolved" "https://registry.npmjs.org/gitlab/-/gitlab-14.2.2.tgz"
@@ -9124,6 +9136,7 @@
     "minimist" "^1.2.5"
     "neo-async" "^2.6.0"
     "source-map" "^0.6.1"
+    "uglify-js" "^3.1.4"
     "wordwrap" "^1.0.0"
   optionalDependencies:
     "uglify-js" "^3.1.4"
@@ -10714,6 +10727,7 @@
     "@types/node" "*"
     "anymatch" "^3.0.3"
     "fb-watchman" "^2.0.0"
+    "fsevents" "^2.3.2"
     "graceful-fs" "^4.2.4"
     "jest-regex-util" "^27.0.6"
     "jest-serializer" "^27.0.6"
@@ -11163,6 +11177,8 @@
   "integrity" "sha1-NzaitCi4e72gzIO1P6PWM6NcKug="
   "resolved" "https://registry.npmjs.org/jsonfile/-/jsonfile-2.4.0.tgz"
   "version" "2.4.0"
+  dependencies:
+    "graceful-fs" "^4.1.6"
   optionalDependencies:
     "graceful-fs" "^4.1.6"
 
@@ -11170,6 +11186,8 @@
   "integrity" "sha1-h3Gq4HmbZAdrdmQPygWPnBDjPss="
   "resolved" "https://registry.npmjs.org/jsonfile/-/jsonfile-4.0.0.tgz"
   "version" "4.0.0"
+  dependencies:
+    "graceful-fs" "^4.1.6"
   optionalDependencies:
     "graceful-fs" "^4.1.6"
 
@@ -11178,6 +11196,7 @@
   "resolved" "https://registry.npmjs.org/jsonfile/-/jsonfile-6.1.0.tgz"
   "version" "6.1.0"
   dependencies:
+    "graceful-fs" "^4.1.6"
     "universalify" "^2.0.0"
   optionalDependencies:
     "graceful-fs" "^4.1.6"
@@ -11263,6 +11282,8 @@
   "integrity" "sha1-QIhDO0azsbolnXh4XY6W9zugJDk="
   "resolved" "https://registry.npmjs.org/klaw/-/klaw-1.3.1.tgz"
   "version" "1.3.1"
+  dependencies:
+    "graceful-fs" "^4.1.9"
   optionalDependencies:
     "graceful-fs" "^4.1.9"
 
@@ -12225,6 +12246,7 @@
   "resolved" "https://registry.npmjs.org/minipass-fetch/-/minipass-fetch-1.3.4.tgz"
   "version" "1.3.4"
   dependencies:
+    "encoding" "^0.1.12"
     "minipass" "^3.1.0"
     "minipass-sized" "^1.0.3"
     "minizlib" "^2.0.0"
@@ -12494,7 +12516,7 @@
   "resolved" "https://registry.npmjs.org/neo-async/-/neo-async-2.6.2.tgz"
   "version" "2.6.2"
 
-"netlify-cms-app@^2.15.39", "netlify-cms-app@file:/Users/donski/.go/src/github.com/netlify-cms/packages/netlify-cms-app":
+"netlify-cms-app@^2.15.39", "netlify-cms-app@file:/home/carlos/Desktop/brank.as/netlify-cms/packages/netlify-cms-app":
   "resolved" "file:packages/netlify-cms-app"
   "version" "2.15.39"
   dependencies:
@@ -12539,14 +12561,14 @@
     "react-immutable-proptypes" "^2.1.0"
     "uuid" "^3.3.2"
 
-"netlify-cms-backend-azure@^1.2.2", "netlify-cms-backend-azure@file:/Users/donski/.go/src/github.com/netlify-cms/packages/netlify-cms-backend-azure":
+"netlify-cms-backend-azure@^1.2.2":
   "resolved" "file:packages/netlify-cms-backend-azure"
   "version" "1.2.2"
   dependencies:
     "js-base64" "^3.0.0"
     "semaphore" "^1.1.0"
 
-"netlify-cms-backend-bitbucket@^2.12.8", "netlify-cms-backend-bitbucket@^2.13.3", "netlify-cms-backend-bitbucket@file:/Users/donski/.go/src/github.com/netlify-cms/packages/netlify-cms-backend-bitbucket":
+"netlify-cms-backend-bitbucket@^2.12.8", "netlify-cms-backend-bitbucket@^2.13.3":
   "resolved" "file:packages/netlify-cms-backend-bitbucket"
   "version" "2.13.3"
   dependencies:
@@ -12555,7 +12577,7 @@
     "semaphore" "^1.1.0"
     "what-the-diff" "^0.6.0"
 
-"netlify-cms-backend-git-gateway@^2.12.2", "netlify-cms-backend-git-gateway@file:/Users/donski/.go/src/github.com/netlify-cms/packages/netlify-cms-backend-git-gateway":
+"netlify-cms-backend-git-gateway@^2.12.2":
   "resolved" "file:packages/netlify-cms-backend-git-gateway"
   "version" "2.12.2"
   dependencies:
@@ -12564,7 +12586,7 @@
     "jwt-decode" "^3.0.0"
     "minimatch" "^3.0.4"
 
-"netlify-cms-backend-gitea@^1.0.0", "netlify-cms-backend-gitea@file:/Users/donski/.go/src/github.com/netlify-cms/packages/netlify-cms-backend-gitea":
+"netlify-cms-backend-gitea@^1.0.0", "netlify-cms-backend-gitea@file:/home/carlos/Desktop/brank.as/netlify-cms/packages/netlify-cms-backend-gitea":
   "resolved" "file:packages/netlify-cms-backend-gitea"
   "version" "1.0.0"
   dependencies:
@@ -12572,7 +12594,7 @@
     "js-base64" "^3.0.0"
     "semaphore" "^1.1.0"
 
-"netlify-cms-backend-github@^2.11.9", "netlify-cms-backend-github@^2.13.4", "netlify-cms-backend-github@file:/Users/donski/.go/src/github.com/netlify-cms/packages/netlify-cms-backend-github":
+"netlify-cms-backend-github@^2.11.9", "netlify-cms-backend-github@^2.13.4":
   "resolved" "file:packages/netlify-cms-backend-github"
   "version" "2.13.4"
   dependencies:
@@ -12586,22 +12608,22 @@
     "js-base64" "^3.0.0"
     "semaphore" "^1.1.0"
 
-"netlify-cms-backend-gitlab@^2.11.4", "netlify-cms-backend-gitlab@^2.9.9", "netlify-cms-backend-gitlab@file:/Users/donski/.go/src/github.com/netlify-cms/packages/netlify-cms-backend-gitlab":
+"netlify-cms-backend-gitlab@^2.11.4", "netlify-cms-backend-gitlab@^2.9.9":
   "resolved" "file:packages/netlify-cms-backend-gitlab"
   "version" "2.11.4"
   dependencies:
     "js-base64" "^3.0.0"
     "semaphore" "^1.1.0"
 
-"netlify-cms-backend-proxy@^1.2.3", "netlify-cms-backend-proxy@file:/Users/donski/.go/src/github.com/netlify-cms/packages/netlify-cms-backend-proxy":
+"netlify-cms-backend-proxy@^1.2.3":
   "resolved" "file:packages/netlify-cms-backend-proxy"
   "version" "1.2.3"
 
-"netlify-cms-backend-test@^2.11.3", "netlify-cms-backend-test@file:/Users/donski/.go/src/github.com/netlify-cms/packages/netlify-cms-backend-test":
+"netlify-cms-backend-test@^2.11.3":
   "resolved" "file:packages/netlify-cms-backend-test"
   "version" "2.11.3"
 
-"netlify-cms-core@^2.47.2", "netlify-cms-core@file:/Users/donski/.go/src/github.com/netlify-cms/packages/netlify-cms-core":
+"netlify-cms-core@^2.47.2", "netlify-cms-core@file:/home/carlos/Desktop/brank.as/netlify-cms/packages/netlify-cms-core":
   "resolved" "file:packages/netlify-cms-core"
   "version" "2.47.2"
   dependencies:
@@ -12653,7 +12675,7 @@
     "what-input" "^5.1.4"
     "yaml" "^1.8.3"
 
-"netlify-cms-default-exports@file:/Users/donski/.go/src/github.com/netlify-cms/packages/netlify-cms-default-exports":
+"netlify-cms-default-exports@file:/home/carlos/Desktop/brank.as/netlify-cms/packages/netlify-cms-default-exports":
   "resolved" "file:packages/netlify-cms-default-exports"
   "version" "2.4.0"
   dependencies:
@@ -12666,15 +12688,15 @@
     "react-immutable-proptypes" "^2.1.0"
     "uuid" "^3.3.2"
 
-"netlify-cms-editor-component-image@^2.6.7", "netlify-cms-editor-component-image@^2.7.0", "netlify-cms-editor-component-image@file:/Users/donski/.go/src/github.com/netlify-cms/packages/netlify-cms-editor-component-image":
+"netlify-cms-editor-component-image@^2.6.7", "netlify-cms-editor-component-image@^2.7.0", "netlify-cms-editor-component-image@file:/home/carlos/Desktop/brank.as/netlify-cms/packages/netlify-cms-editor-component-image":
   "resolved" "file:packages/netlify-cms-editor-component-image"
   "version" "2.7.0"
 
-"netlify-cms-lib-auth@^2.2.0", "netlify-cms-lib-auth@^2.3.0", "netlify-cms-lib-auth@^2.4.2", "netlify-cms-lib-auth@file:/Users/donski/.go/src/github.com/netlify-cms/packages/netlify-cms-lib-auth":
+"netlify-cms-lib-auth@^2.2.0", "netlify-cms-lib-auth@^2.3.0", "netlify-cms-lib-auth@^2.4.2", "netlify-cms-lib-auth@file:/home/carlos/Desktop/brank.as/netlify-cms/packages/netlify-cms-lib-auth":
   "resolved" "file:packages/netlify-cms-lib-auth"
   "version" "2.4.2"
 
-"netlify-cms-lib-util@^2.12.3", "netlify-cms-lib-util@^2.13.3", "netlify-cms-lib-util@^2.3.0", "netlify-cms-lib-util@file:/Users/donski/.go/src/github.com/netlify-cms/packages/netlify-cms-lib-util":
+"netlify-cms-lib-util@^2.12.3", "netlify-cms-lib-util@^2.13.3", "netlify-cms-lib-util@^2.3.0", "netlify-cms-lib-util@file:/home/carlos/Desktop/brank.as/netlify-cms/packages/netlify-cms-lib-util":
   "resolved" "file:packages/netlify-cms-lib-util"
   "version" "2.13.3"
   dependencies:
@@ -12682,26 +12704,26 @@
     "localforage" "^1.7.3"
     "semaphore" "^1.1.0"
 
-"netlify-cms-lib-widgets@^1.6.1", "netlify-cms-lib-widgets@^1.6.3", "netlify-cms-lib-widgets@file:/Users/donski/.go/src/github.com/netlify-cms/packages/netlify-cms-lib-widgets":
+"netlify-cms-lib-widgets@^1.6.1", "netlify-cms-lib-widgets@^1.6.3", "netlify-cms-lib-widgets@file:/home/carlos/Desktop/brank.as/netlify-cms/packages/netlify-cms-lib-widgets":
   "resolved" "file:packages/netlify-cms-lib-widgets"
   "version" "1.6.3"
 
-"netlify-cms-locales@^1.35.0", "netlify-cms-locales@file:/Users/donski/.go/src/github.com/netlify-cms/packages/netlify-cms-locales":
+"netlify-cms-locales@^1.35.0", "netlify-cms-locales@file:/home/carlos/Desktop/brank.as/netlify-cms/packages/netlify-cms-locales":
   "resolved" "file:packages/netlify-cms-locales"
   "version" "1.35.0"
 
-"netlify-cms-media-library-cloudinary@^1.3.10", "netlify-cms-media-library-cloudinary@file:/Users/donski/.go/src/github.com/netlify-cms/packages/netlify-cms-media-library-cloudinary":
+"netlify-cms-media-library-cloudinary@^1.3.10", "netlify-cms-media-library-cloudinary@file:/home/carlos/Desktop/brank.as/netlify-cms/packages/netlify-cms-media-library-cloudinary":
   "resolved" "file:packages/netlify-cms-media-library-cloudinary"
   "version" "1.3.10"
 
-"netlify-cms-media-library-uploadcare@^0.5.10", "netlify-cms-media-library-uploadcare@file:/Users/donski/.go/src/github.com/netlify-cms/packages/netlify-cms-media-library-uploadcare":
+"netlify-cms-media-library-uploadcare@^0.5.10", "netlify-cms-media-library-uploadcare@file:/home/carlos/Desktop/brank.as/netlify-cms/packages/netlify-cms-media-library-uploadcare":
   "resolved" "file:packages/netlify-cms-media-library-uploadcare"
   "version" "0.5.10"
   dependencies:
     "uploadcare-widget" "^3.7.0"
     "uploadcare-widget-tab-effects" "^1.4.0"
 
-"netlify-cms-ui-default@^2.12.1", "netlify-cms-ui-default@^2.15.2", "netlify-cms-ui-default@file:/Users/donski/.go/src/github.com/netlify-cms/packages/netlify-cms-ui-default":
+"netlify-cms-ui-default@^2.12.1", "netlify-cms-ui-default@^2.15.2", "netlify-cms-ui-default@file:/home/carlos/Desktop/brank.as/netlify-cms/packages/netlify-cms-ui-default":
   "resolved" "file:packages/netlify-cms-ui-default"
   "version" "2.15.2"
   dependencies:
@@ -12709,35 +12731,35 @@
     "react-toggled" "^1.1.2"
     "react-transition-group" "^4.0.0"
 
-"netlify-cms-widget-boolean@^2.4.1", "netlify-cms-widget-boolean@file:/Users/donski/.go/src/github.com/netlify-cms/packages/netlify-cms-widget-boolean":
+"netlify-cms-widget-boolean@^2.4.1", "netlify-cms-widget-boolean@file:/home/carlos/Desktop/brank.as/netlify-cms/packages/netlify-cms-widget-boolean":
   "resolved" "file:packages/netlify-cms-widget-boolean"
   "version" "2.4.1"
 
-"netlify-cms-widget-code@^1.3.3", "netlify-cms-widget-code@file:/Users/donski/.go/src/github.com/netlify-cms/packages/netlify-cms-widget-code":
+"netlify-cms-widget-code@^1.3.3", "netlify-cms-widget-code@file:/home/carlos/Desktop/brank.as/netlify-cms/packages/netlify-cms-widget-code":
   "resolved" "file:packages/netlify-cms-widget-code"
   "version" "1.3.3"
   dependencies:
     "react-codemirror2" "^7.0.0"
     "react-select" "^4.0.0"
 
-"netlify-cms-widget-colorstring@^1.1.1", "netlify-cms-widget-colorstring@file:/Users/donski/.go/src/github.com/netlify-cms/packages/netlify-cms-widget-colorstring":
+"netlify-cms-widget-colorstring@^1.1.1", "netlify-cms-widget-colorstring@file:/home/carlos/Desktop/brank.as/netlify-cms/packages/netlify-cms-widget-colorstring":
   "resolved" "file:packages/netlify-cms-widget-colorstring"
   "version" "1.1.1"
   dependencies:
     "react-color" "^2.18.1"
     "validate-color" "^2.1.0"
 
-"netlify-cms-widget-date@^2.5.7", "netlify-cms-widget-date@^2.6.2", "netlify-cms-widget-date@file:/Users/donski/.go/src/github.com/netlify-cms/packages/netlify-cms-widget-date":
+"netlify-cms-widget-date@^2.5.7", "netlify-cms-widget-date@^2.6.2", "netlify-cms-widget-date@file:/home/carlos/Desktop/brank.as/netlify-cms/packages/netlify-cms-widget-date":
   "resolved" "file:packages/netlify-cms-widget-date"
   "version" "2.6.2"
   dependencies:
     "react-datetime" "^3.0.0"
 
-"netlify-cms-widget-datetime@^2.7.3", "netlify-cms-widget-datetime@file:/Users/donski/.go/src/github.com/netlify-cms/packages/netlify-cms-widget-datetime":
+"netlify-cms-widget-datetime@^2.7.3", "netlify-cms-widget-datetime@file:/home/carlos/Desktop/brank.as/netlify-cms/packages/netlify-cms-widget-datetime":
   "resolved" "file:packages/netlify-cms-widget-datetime"
   "version" "2.7.3"
 
-"netlify-cms-widget-file@^2.11.1", "netlify-cms-widget-file@^2.9.2", "netlify-cms-widget-file@file:/Users/donski/.go/src/github.com/netlify-cms/packages/netlify-cms-widget-file":
+"netlify-cms-widget-file@^2.11.1", "netlify-cms-widget-file@^2.9.2", "netlify-cms-widget-file@file:/home/carlos/Desktop/brank.as/netlify-cms/packages/netlify-cms-widget-file":
   "resolved" "file:packages/netlify-cms-widget-file"
   "version" "2.11.1"
   dependencies:
@@ -12745,23 +12767,23 @@
     "common-tags" "^1.8.0"
     "react-sortable-hoc" "^2.0.0"
 
-"netlify-cms-widget-image@^2.8.1", "netlify-cms-widget-image@file:/Users/donski/.go/src/github.com/netlify-cms/packages/netlify-cms-widget-image":
+"netlify-cms-widget-image@^2.8.1", "netlify-cms-widget-image@file:/home/carlos/Desktop/brank.as/netlify-cms/packages/netlify-cms-widget-image":
   "resolved" "file:packages/netlify-cms-widget-image"
   "version" "2.8.1"
 
-"netlify-cms-widget-list@^2.10.1", "netlify-cms-widget-list@file:/Users/donski/.go/src/github.com/netlify-cms/packages/netlify-cms-widget-list":
+"netlify-cms-widget-list@^2.10.1", "netlify-cms-widget-list@file:/home/carlos/Desktop/brank.as/netlify-cms/packages/netlify-cms-widget-list":
   "resolved" "file:packages/netlify-cms-widget-list"
   "version" "2.10.1"
   dependencies:
     "react-sortable-hoc" "^2.0.0"
 
-"netlify-cms-widget-map@^1.5.0", "netlify-cms-widget-map@file:/Users/donski/.go/src/github.com/netlify-cms/packages/netlify-cms-widget-map":
+"netlify-cms-widget-map@^1.5.0", "netlify-cms-widget-map@file:/home/carlos/Desktop/brank.as/netlify-cms/packages/netlify-cms-widget-map":
   "resolved" "file:packages/netlify-cms-widget-map"
   "version" "1.5.0"
   dependencies:
     "ol" "^5.3.1"
 
-"netlify-cms-widget-markdown@^2.14.2", "netlify-cms-widget-markdown@file:/Users/donski/.go/src/github.com/netlify-cms/packages/netlify-cms-widget-markdown":
+"netlify-cms-widget-markdown@^2.14.2", "netlify-cms-widget-markdown@file:/home/carlos/Desktop/brank.as/netlify-cms/packages/netlify-cms-widget-markdown":
   "resolved" "file:packages/netlify-cms-widget-markdown"
   "version" "2.14.2"
   dependencies:
@@ -12784,38 +12806,38 @@
     "unist-builder" "^1.0.3"
     "unist-util-visit-parents" "^2.0.1"
 
-"netlify-cms-widget-number@^2.5.0", "netlify-cms-widget-number@file:/Users/donski/.go/src/github.com/netlify-cms/packages/netlify-cms-widget-number":
+"netlify-cms-widget-number@^2.5.0", "netlify-cms-widget-number@file:/home/carlos/Desktop/brank.as/netlify-cms/packages/netlify-cms-widget-number":
   "resolved" "file:packages/netlify-cms-widget-number"
   "version" "2.5.0"
 
-"netlify-cms-widget-object@^2.6.2", "netlify-cms-widget-object@^2.7.1", "netlify-cms-widget-object@file:/Users/donski/.go/src/github.com/netlify-cms/packages/netlify-cms-widget-object":
+"netlify-cms-widget-object@^2.6.2", "netlify-cms-widget-object@^2.7.1", "netlify-cms-widget-object@file:/home/carlos/Desktop/brank.as/netlify-cms/packages/netlify-cms-widget-object":
   "resolved" "file:packages/netlify-cms-widget-object"
   "version" "2.7.1"
 
-"netlify-cms-widget-relation@^2.10.3", "netlify-cms-widget-relation@file:/Users/donski/.go/src/github.com/netlify-cms/packages/netlify-cms-widget-relation":
+"netlify-cms-widget-relation@^2.10.3", "netlify-cms-widget-relation@file:/home/carlos/Desktop/brank.as/netlify-cms/packages/netlify-cms-widget-relation":
   "resolved" "file:packages/netlify-cms-widget-relation"
   "version" "2.10.3"
   dependencies:
     "react-select" "^4.0.0"
     "react-window" "^1.8.5"
 
-"netlify-cms-widget-select@^2.8.2", "netlify-cms-widget-select@file:/Users/donski/.go/src/github.com/netlify-cms/packages/netlify-cms-widget-select":
+"netlify-cms-widget-select@^2.8.2", "netlify-cms-widget-select@file:/home/carlos/Desktop/brank.as/netlify-cms/packages/netlify-cms-widget-select":
   "resolved" "file:packages/netlify-cms-widget-select"
   "version" "2.8.2"
   dependencies:
     "react-select" "^4.0.0"
 
-"netlify-cms-widget-string@^2.3.0", "netlify-cms-widget-string@file:/Users/donski/.go/src/github.com/netlify-cms/packages/netlify-cms-widget-string":
+"netlify-cms-widget-string@^2.3.0", "netlify-cms-widget-string@file:/home/carlos/Desktop/brank.as/netlify-cms/packages/netlify-cms-widget-string":
   "resolved" "file:packages/netlify-cms-widget-string"
   "version" "2.3.0"
 
-"netlify-cms-widget-text@^2.4.1", "netlify-cms-widget-text@file:/Users/donski/.go/src/github.com/netlify-cms/packages/netlify-cms-widget-text":
+"netlify-cms-widget-text@^2.4.1", "netlify-cms-widget-text@file:/home/carlos/Desktop/brank.as/netlify-cms/packages/netlify-cms-widget-text":
   "resolved" "file:packages/netlify-cms-widget-text"
   "version" "2.4.1"
   dependencies:
     "react-textarea-autosize" "^8.0.0"
 
-"netlify-cms@file:/Users/donski/.go/src/github.com/netlify-cms/packages/netlify-cms":
+"netlify-cms@file:/home/carlos/Desktop/brank.as/netlify-cms/packages/netlify-cms":
   "resolved" "file:packages/netlify-cms"
   "version" "2.10.159"
   dependencies:
@@ -14279,6 +14301,8 @@
   "integrity" "sha512-PrEDJAFdUGbOP6xK/UsfkC5ghJsPJviKgnQOoxaDbBjwc8op68Quupwt1DeAFoG8GImPhiKXAvvsH7wDSLsu1Q=="
   "resolved" "https://registry.npmjs.org/prismjs/-/prismjs-1.17.1.tgz"
   "version" "1.17.1"
+  dependencies:
+    "clipboard" "^2.0.0"
   optionalDependencies:
     "clipboard" "^2.0.0"
 
@@ -18612,8 +18636,10 @@
   "resolved" "https://registry.npmjs.org/watchpack/-/watchpack-1.7.5.tgz"
   "version" "1.7.5"
   dependencies:
+    "chokidar" "^3.4.1"
     "graceful-fs" "^4.1.2"
     "neo-async" "^2.5.0"
+    "watchpack-chokidar2" "^2.0.1"
   optionalDependencies:
     "chokidar" "^3.4.1"
     "watchpack-chokidar2" "^2.0.1"

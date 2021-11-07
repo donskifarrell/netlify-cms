@@ -416,8 +416,8 @@ export class Backend {
       useWorkflow &&
       (await this.implementation
         .unpublishedEntry({ collection: collection.get('name'), slug })
-        .catch(error => {
-          if (error instanceof EditorialWorkflowError && error.notUnderEditorialWorkflow) {
+        .catch((error) => {
+          if (error.notUnderEditorialWorkflow) {
             return Promise.resolve(false);
           }
           return Promise.reject(error);
@@ -444,6 +444,7 @@ export class Backend {
   ) {
     const slugConfig = config.slug;
     let slug: string;
+
     if (customPath) {
       slug = slugFromCustomPath(collection, customPath);
     } else {
@@ -1055,13 +1056,9 @@ export class Backend {
   }: PersistArgs) {
     const modifiedData = await this.invokePreSaveEvent(draft.get('entry'));
     const entryDraft = (modifiedData && draft.setIn(['entry', 'data'], modifiedData)) || draft;
-
     const newEntry = entryDraft.getIn(['entry', 'newRecord']) || false;
-
     const useWorkflow = selectUseWorkflow(config);
-
     const customPath = selectCustomPath(collection, entryDraft);
-
     let dataFile: DataFile;
     if (newEntry) {
       if (!selectAllowNewEntries(collection)) {
@@ -1080,7 +1077,6 @@ export class Backend {
         slug,
         raw: this.entryToRaw(collection, entryDraft.get('entry')),
       };
-
       updateAssetProxies(assetProxies, config, collection, entryDraft, path);
     } else {
       const slug = entryDraft.getIn(['entry', 'slug']);
@@ -1108,7 +1104,6 @@ export class Backend {
         newPath,
       );
     }
-
     const user = (await this.currentUser()) as User;
     const commitMessage = commitMessageFormatter(
       newEntry ? 'create' : 'update',
@@ -1133,11 +1128,9 @@ export class Backend {
       useWorkflow,
       ...updatedOptions,
     };
-
     if (!useWorkflow) {
       await this.invokePrePublishEvent(entryDraft.get('entry'));
     }
-
     await this.implementation.persistEntry(
       {
         dataFiles,
@@ -1145,9 +1138,7 @@ export class Backend {
       },
       opts,
     );
-
     await this.invokePostSaveEvent(entryDraft.get('entry'));
-
     if (!useWorkflow) {
       await this.invokePostPublishEvent(entryDraft.get('entry'));
     }

@@ -3,6 +3,7 @@ import semaphore, { Semaphore } from 'semaphore';
 import { trim } from 'lodash';
 import { stripIndent } from 'common-tags';
 import {
+  EditorialWorkflowError,
   CURSOR_COMPATIBILITY_SYMBOL,
   basename,
   Entry,
@@ -159,19 +160,17 @@ export default class Gitea implements Implementation {
     depth: number,
   ) {
     // gitea paths include the root folder
-    console.log("filterFile", folder, file, extension, depth)
     const fileFolder = trim(file.path.split(folder)[1] || '/', '/');
     return filterByExtension(file, extension) && fileFolder.split('/').length <= depth;
   }
 
   async entriesByFolder(folder: string, extension: string, depth: number) {
+    console.log("call: entriesByFolder")
     let cursor: Cursor;
-    console.log("entriesByFolder", folder, extension, depth)
 
     const listFiles = () =>
       this.api!.listFiles(folder, depth > 1).then(({ files, cursor: c }) => {
 
-        console.log("listFiles", folder, files, extension, depth)
         cursor = c.mergeMeta({ folder, extension, depth });
         return files.filter(file => this.filterFile(folder, file, extension, depth));
       });
@@ -185,20 +184,18 @@ export default class Gitea implements Implementation {
     // eslint-disable-next-line @typescript-eslint/ban-ts-ignore
     // @ts-ignore
     files[CURSOR_COMPATIBILITY_SYMBOL] = cursor;
-    console.log("entriesByFolder:files", files)
     return files;
   }
 
   async listAllFiles(folder: string, extension: string, depth: number) {
     const files = await this.api!.listAllFiles(folder, depth > 1);
 
-    console.log("listAllFiles", folder, files, extension, depth)
     const filtered = files.filter(file => this.filterFile(folder, file, extension, depth));
     return filtered;
   }
 
   async allEntriesByFolder(folder: string, extension: string, depth: number) {
-    console.log("allEntriesByFolder", folder, extension, depth);
+    console.log("call: allEntriesByFolder", folder, extension, depth);
     const files = await allEntriesByFolder({
       listAllFiles: () => this.listAllFiles(folder, extension, depth),
       readFile: this.api!.readFile.bind(this.api!),
@@ -212,7 +209,7 @@ export default class Gitea implements Implementation {
       getDefaultBranch: () =>
         this.api!.getDefaultBranch().then(b => ({ name: b.name, sha: b.commit.id })),
       isShaExistsInBranch: this.api!.isShaExistsInBranch.bind(this.api!),
-      getDifferences: (to, from) => this.api!.getDifferences(to, from),
+      getDifferences: (index) => this.api!.getPullDifferences(index),
       getFileId: path => this.api!.getFileId(path, this.branch),
       filterFile: file => this.filterFile(folder, file, extension, depth),
     });
@@ -220,7 +217,7 @@ export default class Gitea implements Implementation {
   }
 
   entriesByFiles(files: ImplementationFile[]) {
-    console.log("entriesByFiles", files);
+    console.log("call: entriesByFiles");
     return entriesByFiles(
       files,
       this.api!.readFile.bind(this.api!),
@@ -231,9 +228,8 @@ export default class Gitea implements Implementation {
 
   // Fetches a single entry.
   getEntry(path: string) {
-    console.log("getEntry", path);
+    console.log("call: getEntry");
     return this.api!.readFile(path).then(data => {
-      // console.log("getEntry", path, data)
       return {
         file: { path, id: null },
         data: data as string,
@@ -242,7 +238,7 @@ export default class Gitea implements Implementation {
   }
 
   getMedia(mediaFolder = this.mediaFolder) {
-    console.log("getMedia", mediaFolder);
+    console.log("call: getMedia")
     return this.api!.listAllFiles(mediaFolder).then(files =>
       files.map(({ id, name, path }) => {
         return { id, name, path, displayURL: { id, name, path } };
@@ -251,6 +247,8 @@ export default class Gitea implements Implementation {
   }
 
   getMediaDisplayURL(displayURL: DisplayURL) {
+    console.log("call: getMediaDisplayURL ")
+
     this._mediaDisplayURLSem = this._mediaDisplayURLSem || semaphore(MAX_CONCURRENT_DOWNLOADS);
     return getMediaDisplayURL(
       displayURL,
@@ -260,7 +258,7 @@ export default class Gitea implements Implementation {
   }
 
   async getMediaFile(path: string) {
-    console.log("getMediaFile", path);
+    console.log("call: getMediaFile ")
     const name = basename(path);
     const blob = await getMediaAsBlob(path, null, this.api!.readFile.bind(this.api!));
     const fileObj = blobToFileObj(name, blob);
@@ -279,7 +277,7 @@ export default class Gitea implements Implementation {
   }
 
   async persistEntry(entry: Entry, options: PersistOptions) {
-    console.log("persistEntry", entry)
+    console.log("call: persistEntry")
     // persistEntry is a transactional operation
     return runWithLock(
       this.lock,
@@ -290,7 +288,7 @@ export default class Gitea implements Implementation {
 
   async persistMedia(mediaFile: AssetProxy, options: PersistOptions) {
     const fileObj = mediaFile.fileObj as File;
-    console.log("persistMedia", mediaFile, getBlobSHA(fileObj))
+    console.log("call: persistMedia")
     const [id] = await Promise.all([
       getBlobSHA(fileObj),
       this.api!.persistFiles([], [mediaFile], options),
@@ -310,8 +308,8 @@ export default class Gitea implements Implementation {
     };
   }
 
-  deleteFiles(paths: string[], commitMessage: string) {
-    return this.api!.deleteFiles(paths, commitMessage);
+  async deleteFiles(paths: string[], commitMessage: string) {
+    return await this.api!.deleteFiles(paths, commitMessage);
   }
 
   traverseCursor(cursor: Cursor, action: string) {
@@ -339,6 +337,7 @@ export default class Gitea implements Implementation {
   }
 
   loadMediaFile(branch: string, file: UnpublishedEntryMediaFile) {
+    console.log("call: loadmediafile ")
     const readFile = (
       path: string,
       id: string | null | undefined,
@@ -360,6 +359,7 @@ export default class Gitea implements Implementation {
   }
 
   async loadEntryMediaFiles(branch: string, files: UnpublishedEntryMediaFile[]) {
+    console.log("call: loadEntryMediaFiles")
     const mediaFiles = await Promise.all(files.map(file => this.loadMediaFile(branch, file)));
 
     return mediaFiles;
@@ -384,16 +384,26 @@ export default class Gitea implements Implementation {
     collection?: string;
     slug?: string;
   }) {
+    console.log("call: unpublishedEntry")
+    let entryFile;
     if (id) {
-      const data = await this.api!.retrieveUnpublishedEntryData(id);
-      return data;
+      // UnpublishedEntryData is already existing
+      entryFile = await this.api!.retrieveUnpublishedEntryData(id);
     } else if (collection && slug) {
+      // UnpublishedEntryData is newly created
       const entryId = generateContentKey(collection, slug);
-      const data = await this.api!.retrieveUnpublishedEntryData(entryId);
-      return data;
+      entryFile = await this.api!.retrieveUnpublishedEntryData(entryId);
     } else {
       throw new Error('Missing unpublished entry id or collection and slug');
     }
+
+    if (!entryFile) {
+      return Promise.reject(
+        new EditorialWorkflowError('content is not under editorial workflow', true),
+      );
+    }
+
+    return entryFile
   }
 
   getBranch(collection: string, slug: string) {
@@ -404,17 +414,21 @@ export default class Gitea implements Implementation {
 
   async unpublishedEntryDataFile(collection: string, slug: string, path: string, id: string) {
     const branch = this.getBranch(collection, slug);
+    console.log("call: unpublishedEntryDataFile ", branch)
     const data = (await this.api!.readFile(path, id, { branch })) as string;
     return data;
   }
 
   async unpublishedEntryMediaFile(collection: string, slug: string, path: string, id: string) {
     const branch = this.getBranch(collection, slug);
+    console.log("call: unpublishedEntryMediaFile", branch)
     const mediaFile = await this.loadMediaFile(branch, { path, id });
     return mediaFile;
   }
 
   async updateUnpublishedEntryStatus(collection: string, slug: string, newStatus: string) {
+    console.log("call: updateUnpublishedEntryStatus", newStatus)
+
     // updateUnpublishedEntryStatus is a transactional operation
     return runWithLock(
       this.lock,
