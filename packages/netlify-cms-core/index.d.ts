@@ -365,6 +365,7 @@ declare module 'netlify-cms-core' {
       uploadMedia?: string;
       deleteMedia?: string;
       openAuthoring?: string;
+      merge?: string;
     };
   }
 

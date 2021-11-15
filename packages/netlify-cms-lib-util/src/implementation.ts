@@ -111,6 +111,15 @@ export type Config = {
     app_id?: string;
     cms_label_prefix?: string;
     api_version?: string;
+    commit_messages?: {
+      create?: string;
+      update?: string;
+      delete?: string;
+      uploadMedia?: string;
+      deleteMedia?: string;
+      openAuthoring?: string;
+      merge?: string;
+    };
   };
   media_folder: string;
   base_url?: string;

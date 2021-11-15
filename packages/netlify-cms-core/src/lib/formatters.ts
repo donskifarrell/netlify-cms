@@ -30,6 +30,7 @@ const commitMessageTemplates = {
   uploadMedia: 'Upload “{{path}}”',
   deleteMedia: 'Delete “{{path}}”',
   openAuthoring: '{{message}}',
+  merge: '{{message}}',
 } as const;
 
 const variableRegex = /\{\{([^}]+)\}\}/g;

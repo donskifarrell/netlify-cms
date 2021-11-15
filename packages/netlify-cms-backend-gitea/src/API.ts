@@ -47,6 +47,15 @@ export interface Config {
   squashMerges: boolean;
   initialWorkflowStatus: string;
   cmsLabelPrefix: string;
+  commitMessages?: {
+    create?: string;
+    update?: string;
+    delete?: string;
+    uploadMedia?: string;
+    deleteMedia?: string;
+    openAuthoring?: string;
+    merge?: string;
+  };
 }
 
 export interface CommitAuthor {
@@ -393,6 +402,15 @@ export default class API {
   squashMerges: boolean;
   initialWorkflowStatus: string;
   cmsLabelPrefix: string;
+  commitMessages?: {
+    create?: string;
+    update?: string;
+    delete?: string;
+    uploadMedia?: string;
+    deleteMedia?: string;
+    openAuthoring?: string;
+    merge?: string;
+  };
 
   constructor(config: Config) {
     this.apiRoot = config.apiRoot || 'https://gitea.com/api/v1';
@@ -403,6 +421,7 @@ export default class API {
     this.squashMerges = config.squashMerges;
     this.initialWorkflowStatus = config.initialWorkflowStatus;
     this.cmsLabelPrefix = config.cmsLabelPrefix;
+    this.commitMessages = config.commitMessages;
   }
 
   withAuthorizationHeaders = (req: ApiRequest) => {
@@ -1150,9 +1169,9 @@ export default class API {
     const branch = branchFromContentKey(contentKey);
     const pullRequest = await this.getBranchPullRequest(branch);
     const mergePullRequestOpt: GiteaMergePullRequestOption = {
-      Do: "rebase",
-      MergeTitleField: "trial cms",
-      MergeMessageField: "merge via cms",
+      Do: "squash",
+      MergeTitleField: `Netlify CMS: Change ${collectionName} “${slug}”`,
+      MergeMessageField: `${this.commitMessages?.merge}`,
     }
     await this.mergePullRequest(pullRequest.number, mergePullRequestOpt);
     await this.deleteBranch(branch)

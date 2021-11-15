@@ -56,6 +56,15 @@ export default class Gitea implements Implementation {
   cmsLabelPrefix: string;
   mediaFolder: string;
   previewContext: string;
+  commitMessages?: {
+    create?: string;
+    update?: string;
+    delete?: string;
+    uploadMedia?: string;
+    deleteMedia?: string;
+    openAuthoring?: string;
+    merge?: string;
+  };
 
   _mediaDisplayURLSem?: Semaphore;
 
@@ -84,6 +93,7 @@ export default class Gitea implements Implementation {
     this.cmsLabelPrefix = config.backend.cms_label_prefix || '';
     this.mediaFolder = config.media_folder;
     this.previewContext = config.backend.preview_context || '';
+    this.commitMessages = config.backend.commit_messages
     this.lock = asyncLock();
   }
 
@@ -122,6 +132,7 @@ export default class Gitea implements Implementation {
       squashMerges: this.squashMerges,
       cmsLabelPrefix: this.cmsLabelPrefix,
       initialWorkflowStatus: this.options.initialWorkflowStatus,
+      commitMessages: this.commitMessages,
     });
     const user = await this.api.user();
     const isCollab = await this.api.hasWriteAccess().catch((error: Error) => {
@@ -165,7 +176,7 @@ export default class Gitea implements Implementation {
   }
 
   async entriesByFolder(folder: string, extension: string, depth: number) {
-    console.log("call: entriesByFolder")
+    console.log("call: entriesByFolder ")
     let cursor: Cursor;
 
     const listFiles = () =>

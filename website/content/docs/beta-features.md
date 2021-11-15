@@ -489,6 +489,7 @@ backend:
     uploadMedia: Upload “{{path}}”
     deleteMedia: Delete “{{path}}”
     openAuthoring: '{{message}}'
+    merge: Automatically generated. Merged on Netlify CMS {{collection}} “{{slug}}.
 ```
 
 Netlify CMS generates the following commit types:

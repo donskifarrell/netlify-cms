@@ -373,6 +373,7 @@ export interface CmsBackend {
     uploadMedia?: string;
     deleteMedia?: string;
     openAuthoring?: string;
+    merge?: string;
   };
 }
 
@@ -777,12 +778,12 @@ export interface EntriesMoveSuccessPayload extends EntryPayload {
 
 export interface EntriesAction extends Action<string> {
   payload:
-    | EntryRequestPayload
-    | EntrySuccessPayload
-    | EntryFailurePayload
-    | EntriesSuccessPayload
-    | EntriesRequestPayload
-    | EntryDeletePayload;
+  | EntryRequestPayload
+  | EntrySuccessPayload
+  | EntryFailurePayload
+  | EntriesSuccessPayload
+  | EntriesRequestPayload
+  | EntryDeletePayload;
   meta: {
     collection: string;
   };
