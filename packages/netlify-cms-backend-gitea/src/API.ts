@@ -30,7 +30,7 @@ import {
 import gd from 'gitdiff-parser';
 import { Base64 } from 'js-base64';
 import { Map } from 'immutable';
-import { flow, partial, pull, result, trimStart } from 'lodash';
+import { create, flow, partial, pull, result, trimStart } from 'lodash';
 import { dirname } from 'path';
 import { func } from 'prop-types';
 import { ContextReplacementPlugin } from 'webpack';
@@ -45,6 +45,7 @@ export interface Config {
   branch?: string;
   repo?: string;
   squashMerges: boolean;
+  approverToken?: string;
   initialWorkflowStatus: string;
   cmsLabelPrefix: string;
   commitMessages?: {
@@ -152,6 +153,14 @@ type GiteaMergePullRequestOption = {
   MergeMessageField: string;
   Do: string;
 }
+
+type GiteaCreatePullReviewOpt = {
+  event: string;
+  body?: string;
+  commit_id?: string;
+  comments?: any;
+}
+
 
 // PRBranchInfo information about a branch
 type PRBranchInfo = {
@@ -400,6 +409,7 @@ export default class API {
   repoURL: string;
   commitAuthor?: CommitAuthor;
   squashMerges: boolean;
+  approverToken?: string;
   initialWorkflowStatus: string;
   cmsLabelPrefix: string;
   commitMessages?: {
@@ -419,6 +429,7 @@ export default class API {
     this.repo = config.repo || ''; // brankas/site
     this.repoURL = `/repos/${this.repo}`;
     this.squashMerges = config.squashMerges;
+    this.approverToken = config.approverToken;
     this.initialWorkflowStatus = config.initialWorkflowStatus;
     this.cmsLabelPrefix = config.cmsLabelPrefix;
     this.commitMessages = config.commitMessages;
@@ -664,7 +675,7 @@ export default class API {
             content: item.base64Content,
             from_path: item.path,
             signoff: true,
-            message: commitMessage,
+            message: this.commitMessages.update,
             branch: branch,
           };
           await this.UpdateFile(item.path, updateFileOpt);
@@ -684,7 +695,7 @@ export default class API {
             sha: item.sha,
             signoff: true,
             branch: branch,
-
+            message: commitMessage,
           };
           await this.DeleteFile(item.oldPath, deleteFileOpt);
 
@@ -700,6 +711,7 @@ export default class API {
             sha: item.sha,
             signoff: true,
             branch: branch,
+            message: commitMessage,
           };
           await this.DeleteFile(item.oldPath, deleteFileOpt);
 
@@ -781,7 +793,6 @@ export default class API {
     } else {
       const items = await this.appendCommitMetadata(files, this.branch);
       await this.uploadAndCommit(items, {
-        commitMessage: options.commitMessage,
         branch: this.branch,
       });
     }
@@ -1015,7 +1026,6 @@ export default class API {
   async createPullRequest(opt: GiteaCreatePullRequestOption) {
     await this.requestJSON({
       method: 'POST',
-      headers: { 'Content-Type': 'application/json; charset=utf-8' },
       url: `${this.repoURL}/pulls`,
       headers: { 'Content-Type': APPLICATION_JSON },
       body: JSON.stringify(opt),
@@ -1164,10 +1174,30 @@ export default class API {
     });
   }
 
+  async autoApproveMergeRequest(index: any, opt: GiteaCreatePullReviewOpt) {
+    await this.request({
+      method: 'POST',
+      url: `${this.repoURL}/pulls/${index}/reviews`,
+      headers: { 'Content-Type': APPLICATION_JSON },
+      body: JSON.stringify(opt),
+      params: { token: this.approverToken },
+    });
+  }
+
   async publishUnpublishedEntry(collectionName: string, slug: string) {
     const contentKey = generateContentKey(collectionName, slug);
     const branch = branchFromContentKey(contentKey);
     const pullRequest = await this.getBranchPullRequest(branch);
+
+    // If approver token is not empty, it will automatically use that for review
+    if (this.approverToken != "") {
+      const createPullReviewOpt: GiteaCreatePullReviewOpt = {
+        body: `Automatic review from Netlify CMS: Change ${collectionName} “${slug}”`,
+        event: `APPROVED`,
+      }
+      await this.autoApproveMergeRequest(pullRequest.number, createPullReviewOpt)
+    }
+
     const mergePullRequestOpt: GiteaMergePullRequestOption = {
       Do: "squash",
       MergeTitleField: `Netlify CMS: Change ${collectionName} “${slug}”`,

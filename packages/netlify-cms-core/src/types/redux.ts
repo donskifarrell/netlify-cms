@@ -365,6 +365,7 @@ export interface CmsBackend {
   auth_endpoint?: string;
   cms_label_prefix?: string;
   squash_merges?: boolean;
+  approver_token?: string;
   proxy_url?: string;
   commit_messages?: {
     create?: string;
@@ -440,6 +441,7 @@ type BackendObject = {
   branch?: string;
   api_root?: string;
   squash_merges?: boolean;
+  approver_token?: string;
   use_graphql?: boolean;
   preview_context?: string;
   identity_url?: string;

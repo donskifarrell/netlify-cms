@@ -100,6 +100,7 @@ export type Config = {
     branch?: string;
     api_root?: string;
     squash_merges?: boolean;
+    approver_token?: string;
     use_graphql?: boolean;
     preview_context?: string;
     identity_url?: string;

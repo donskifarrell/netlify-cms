@@ -54,6 +54,7 @@ export default class Gitea implements Implementation {
   token: string | null;
   squashMerges: boolean;
   cmsLabelPrefix: string;
+  approverToken?: string;
   mediaFolder: string;
   previewContext: string;
   commitMessages?: {
@@ -90,6 +91,7 @@ export default class Gitea implements Implementation {
     this.apiRoot = config.backend.api_root || 'https://gitea.com/api/v1';
     this.token = '';
     this.squashMerges = config.backend.squash_merges || false;
+    this.approverToken = config.backend.approver_token || '';
     this.cmsLabelPrefix = config.backend.cms_label_prefix || '';
     this.mediaFolder = config.media_folder;
     this.previewContext = config.backend.preview_context || '';
@@ -130,6 +132,7 @@ export default class Gitea implements Implementation {
       repo: this.repo,
       apiRoot: this.apiRoot,
       squashMerges: this.squashMerges,
+      approverToken: this.approverToken,
       cmsLabelPrefix: this.cmsLabelPrefix,
       initialWorkflowStatus: this.options.initialWorkflowStatus,
       commitMessages: this.commitMessages,
