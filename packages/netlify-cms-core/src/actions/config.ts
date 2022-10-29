@@ -155,8 +155,7 @@ function throwOnInvalidFileCollectionStructure(i18n?: CmsI18nConfig) {
 function throwOnMissingDefaultLocale(i18n?: CmsI18nConfig) {
   if (i18n && i18n.default_locale && !i18n.locales.includes(i18n.default_locale)) {
     throw new Error(
-      `i18n locales '${i18n.locales.join(', ')}' are missing the default locale ${
-        i18n.default_locale
+      `i18n locales '${i18n.locales.join(', ')}' are missing the default locale ${i18n.default_locale
       }`,
     );
   }

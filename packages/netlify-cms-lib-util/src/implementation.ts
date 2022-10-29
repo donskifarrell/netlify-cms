@@ -100,6 +100,7 @@ export type Config = {
     branch?: string;
     api_root?: string;
     squash_merges?: boolean;
+    approver_token?: string;
     use_graphql?: boolean;
     preview_context?: string;
     identity_url?: string;
@@ -111,6 +112,15 @@ export type Config = {
     app_id?: string;
     cms_label_prefix?: string;
     api_version?: string;
+    commit_messages?: {
+      create?: string;
+      update?: string;
+      delete?: string;
+      uploadMedia?: string;
+      deleteMedia?: string;
+      openAuthoring?: string;
+      merge?: string;
+    };
   };
   media_folder: string;
   base_url?: string;

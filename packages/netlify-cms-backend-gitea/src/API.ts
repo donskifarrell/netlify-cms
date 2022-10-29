@@ -27,12 +27,17 @@ import {
   FetchError,
   throwOnConflictingBranches,
 } from 'netlify-cms-lib-util';
+import gd from 'gitdiff-parser';
 import { Base64 } from 'js-base64';
 import { Map } from 'immutable';
-import { flow, partial, result, trimStart } from 'lodash';
+import { create, flow, partial, pull, result, trimStart } from 'lodash';
 import { dirname } from 'path';
+import { func } from 'prop-types';
+import { ContextReplacementPlugin } from 'webpack';
+import { parse } from '@babel/core';
 
 export const API_NAME = 'Gitea';
+const APPLICATION_JSON = 'application/json; charset=utf-8';
 
 export interface Config {
   apiRoot?: string;
@@ -40,8 +45,18 @@ export interface Config {
   branch?: string;
   repo?: string;
   squashMerges: boolean;
+  approverToken?: string;
   initialWorkflowStatus: string;
   cmsLabelPrefix: string;
+  commitMessages?: {
+    create?: string;
+    update?: string;
+    delete?: string;
+    uploadMedia?: string;
+    deleteMedia?: string;
+    openAuthoring?: string;
+    merge?: string;
+  };
 }
 
 export interface CommitAuthor {
@@ -63,6 +78,26 @@ type CommitItem = {
   action: CommitAction;
   sha?: string;
 };
+
+// ContentsResponse contains information about a repo's entry's (dir, file, symlink, submodule) metadata and content
+type GiteaContentsResponse = {
+  name: string;
+  path: string;
+  sha: string;
+  content: string;
+  type?: string;
+  size?: BigInteger;
+  encoding?: string;
+  target?: string;
+  url?: string;
+  html_url?: string;
+  git_url?: string;
+  download_url?: string;
+  submodule_git_url?: string;
+  links?: string;
+}
+
+
 
 interface CommitsParams {
   commit_message: string;
@@ -113,41 +148,120 @@ type GiteaMergeRebase = {
   merge_error: string;
 };
 
-type GiteaPullRequest = {
-  id: number;
-  iid: number;
-  title: string;
-  base: {
-    label: string;
-    ref: string;
-    repo: GiteaRepo;
-    repo_id: number;
-    sha: string;
-  }
-  head: {
-    label: string;
-    ref: string;
-    repo: GiteaRepo;
-    repo_id: number;
-    sha: string;
-  }
-  description: string;
-  state: string;
-  merged_by: {
-    name: string;
-    username: string;
-  };
-  merged_at: string;
-  created_at: string;
-  updated_at: string;
-  target_branch: string;
-  source_branch: string;
-  author: {
-    name: string;
-    username: string;
-  };
-  labels: string[];
+type GiteaMergePullRequestOption = {
+  MergeTitleField: string;
+  MergeMessageField: string;
+  Do: string;
+}
+
+type GiteaCreatePullReviewOpt = {
+  event: string;
+  body?: string;
+  commit_id?: string;
+  comments?: any;
+}
+
+
+// PRBranchInfo information about a branch
+type PRBranchInfo = {
+  label: string;
+  ref: string;
   sha: string;
+  repo_id: BigInt;
+  repository: any;
+}
+
+// PullRequest represents a pull request
+type GiteaPullRequest = {
+  id: BigInt;
+  url: string;
+  number: BigInt;
+  user: any;
+  title: string;
+  body: string;
+  labels: any;
+  milestone: any;
+  assignee: any;
+  assignees: any;
+  state: any;
+  is_locked: boolean;
+  comments: BigInt;
+
+  html_url: string;
+  diff_url: string;
+  patch_url: string;
+
+  merged: boolean;
+  merged_at: Date;
+  merged_commit_sha: string;
+  merged_by: any;
+
+  base: PRBranchInfo;
+  head: PRBranchInfo;
+  merge_base: string;
+
+  due_date: Date;
+  created_at: Date;
+  updated_at: Date;
+  closed_at: Date;
+}
+// GiteaEditPullRequestOption represents a pull request
+type GiteaEditPullRequestOption = {
+  title?: string;
+  body?: string;
+  base?: PRBranchInfo;
+  assignee?: any;
+  assignees?: any;
+  milestone?: any;
+  labels?: any;
+  state?: any;
+  due_date?: Date;
+}
+
+type GiteaCreateLabelOption = {
+  color?: string;
+  description: string;
+  name: string;
+}
+
+type DeleteEntry = {
+  path: string;
+  action: CommitAction.DELETE;
+};
+
+// GiteaListPullRequestsOptions options for listing pull requests
+type GiteaListPullRequestsOptions = {
+  state?: any;
+  // oldest, recentupdate, leastupdate, mostcomment, leastcomment, priority
+  sort?: string;
+  milestone?: BigInt;
+}
+
+type GiteaCreatePullRequestOption = {
+  head: string; // target origin/branch
+  base: string; // source fork/branch
+  title: string;
+  body: string;
+  assignee?: string;
+  assignees?: string[];
+  milestone?: BigInt64Array;
+  labels?: any;
+  deadline?: Date;
+};
+
+// GiteaLabel a label to an issue or a pr
+type GiteaLabel = {
+  id: BigInt;
+  name: string;
+  // example: 00aabb
+  color: string;
+  description: string;
+  url: string;
+}
+
+type GiteaCreateBranchOption = {
+  new_branch_name: string;
+  old_branch_name: string;
 };
 
 type GiteaRepo = {
@@ -158,13 +272,108 @@ type GiteaRepo = {
   };
 };
 
+type GiteaIdentity = {
+  email: string;
+  name: string;
+}
+
+// CommitDateOptions store dates for GIT_AUTHOR_DATE and GIT_COMMITTER_DATE
+type GiteaCommitDateOptions = {
+  author: Date;
+  committer: Date;
+}
+
+// File
+type GiteaFileOption = {
+  message?: string;
+  branch?: string;
+  new_branch?: string;
+  author?: GiteaIdentity;
+  committer?: GiteaIdentity;
+  dates?: GiteaCommitDateOptions;
+  signoff: boolean;
+};
+
+type GiteaCreateFileOption = {
+  content: string;
+  // FileOptions
+  message?: string;
+  branch?: string;
+  new_branch?: string;
+  author?: GiteaIdentity;
+  committer?: GiteaIdentity;
+  dates?: GiteaCommitDateOptions;
+  signoff: boolean;
+};
+
+type GiteaUpdateFileOption = {
+  sha: string;
+  content: string;
+  from_path?: string;
+  // FileOptions
+  message?: string;
+  branch?: string;
+  new_branch?: string;
+  author?: GiteaIdentity;
+  committer?: GiteaIdentity;
+  dates?: GiteaCommitDateOptions;
+  signoff: boolean;
+};
+
+type GiteaDeleteFileOption = {
+  sha: string;
+  // FileOptions
+  message?: string;
+  branch?: string;
+  new_branch?: string;
+  author?: GiteaIdentity;
+  committer?: GiteaIdentity;
+  dates?: GiteaCommitDateOptions;
+  signoff: boolean;
+};
+
+// PayloadUser represents the author or committer of a commit
+type PayloadUser = {
+  // Full name of the commit author
+  name: string;
+  email: string;
+  username: string;
+}
+
+// PayloadCommit represents a commit
+type PayloadCommit = {
+  // sha1 hash of the commit
+  id: string;
+  message: string;
+  url: string;
+  author: PayloadUser;
+  committer: PayloadUser;
+  verification: PayloadCommitVerification;
+  timestamp: Date;
+  added: string[];
+  removed: string[];
+  modified: string[];
+}
+
+// PayloadCommitVerification represents the GPG verification of a commit
+type PayloadCommitVerification = {
+  verified: boolean;
+  reason: string;
+  signature: string;
+  payload: string;
+}
+
+// Branch represents a repository branch
 type GiteaBranch = {
   name: string;
-  developers_can_push: boolean;
-  developers_can_merge: boolean;
-  commit: {
-    id: string;
-  };
+  commit: PayloadCommit;
+  protected: boolean;
+  required_approvals: BigInt;
+  enable_status_check: boolean;
+  status_check_contexts: string[];
+  user_can_push: boolean;
+  user_can_merge: boolean;
+  effective_branch_protection_name: string;
 };
 
 type GiteaCommitRef = {
@@ -186,10 +395,10 @@ type GiteaCommit = {
   message: string;
 };
 
-// type ReadFile = {
-//   sha?: string  | null,
-//   content: string | Blob,
-// }
+type LocalFile = {
+  path: string;
+  newPath?: string
+}
 
 export default class API {
   apiRoot: string;
@@ -200,18 +409,30 @@ export default class API {
   repoURL: string;
   commitAuthor?: CommitAuthor;
   squashMerges: boolean;
+  approverToken?: string;
   initialWorkflowStatus: string;
   cmsLabelPrefix: string;
+  commitMessages?: {
+    create?: string;
+    update?: string;
+    delete?: string;
+    uploadMedia?: string;
+    deleteMedia?: string;
+    openAuthoring?: string;
+    merge?: string;
+  };
 
   constructor(config: Config) {
     this.apiRoot = config.apiRoot || 'https://gitea.com/api/v1';
     this.token = config.token || false;
     this.branch = config.branch || 'master';
-    this.repo = config.repo || '';
+    this.repo = config.repo || ''; // brankas/site
     this.repoURL = `/repos/${this.repo}`;
     this.squashMerges = config.squashMerges;
+    this.approverToken = config.approverToken;
     this.initialWorkflowStatus = config.initialWorkflowStatus;
     this.cmsLabelPrefix = config.cmsLabelPrefix;
+    this.commitMessages = config.commitMessages;
   }
 
   withAuthorizationHeaders = (req: ApiRequest) => {
@@ -278,31 +499,42 @@ export default class API {
       cache: 'no-store',
     });
     console.log("getFile", file.constructor === Blob, path, file)
-    
+
     return file
   };
-
   readFile = async (
     path: string,
     sha?: string | null,
     { parseText = true, branch = this.branch } = {},
   ): Promise<string | Blob> => {
-    const fetchContent = async () => {
-      const file = await this.request({
-        url: `${this.repoURL}/contents/${encodeURIComponent(path)}`,
-        params: { ref: branch },
-        cache: 'no-store',
-      }).then<any>(parseText ? this.responseToText : this.responseToBlob);
-      console.log("readFile", file.constructor === Blob, path, file)
-      
-      if (file.constructor === Blob) {
-        return file
-      }
+    console.log("-> readfile")
 
-      console.log("readFile.content", path, file.content)
-      const json = JSON.parse(file)
-      console.log("readFile json only", path, json)
-      return this.fromBase64(json.content);
+    // why is this is not executing when the thing is called in GetMediaAsBlob?
+    const fetchContent = async () => {
+      let file, contentString;
+      if (!sha || sha == "") {
+
+        file = await this.GetContent(path, branch)
+        contentString = this.fromBase64(file.content)
+      } else {
+        const result = await this.GetBlob(sha)
+
+        if (parseText) {
+          // treat content as a utf-8 string
+          const content = Base64.decode(result.content);
+          return content;
+        } else {
+          // treat content as binary and convert to blob
+          const content = Base64.atob(result.content);
+          const byteArray = new Uint8Array(content.length);
+          for (let i = 0; i < content.length; i++) {
+            byteArray[i] = content.charCodeAt(i);
+          }
+          const blob = new Blob([byteArray]);
+          return blob;
+        }
+      }
+      return contentString;
     };
 
     const content = await readFile(sha, fetchContent, localForage, parseText);
@@ -312,16 +544,11 @@ export default class API {
   async readFileMetadata(path: string, sha: string | null | undefined) {
     const fetchFileMetadata = async () => {
       try {
-        console.log("readFileMetadata", path)
-        const result: GiteaCommit[] = await this.requestJSON({
-          url: `${this.repoURL}/contents/${encodeURIComponent(path)}`,
-          // eslint-disable-next-line @typescript-eslint/camelcase
-          params: { ref_name: this.branch },
-        });
+        const result = await this.GetCommitBySHA(sha);
         const commit = result[0];
         return {
-          author: commit.author_name || commit.author_email,
-          updatedOn: commit.authored_date,
+          author: commit.author.full_name || commit.author_email,
+          updatedOn: commit.created,
         };
       } catch (e) {
         return { author: '', updatedOn: '' };
@@ -341,9 +568,9 @@ export default class API {
       .keySeq()
       .flatMap(key =>
         (key === 'prev' && page > 1) ||
-        (key === 'next' && page < pageCount) ||
-        (key === 'first' && page > 1) ||
-        (key === 'last' && page < pageCount)
+          (key === 'next' && page < pageCount) ||
+          (key === 'first' && page > 1) ||
+          (key === 'last' && page < pageCount)
           ? [key]
           : [],
       );
@@ -374,7 +601,6 @@ export default class API {
         Promise.all([
           p.then(this.getCursor),
           p.then(this.responseToJSON).catch((e: FetchError) => {
-            console.log("DELETE: json response list files:", e)
             if (e.status === 404) {
               return [];
             } else {
@@ -383,13 +609,12 @@ export default class API {
           }),
         ]),
       then(([cursor, entries]: [Cursor, {}[]]) => {
-        const ents = entries.map((ent: any) => ({ ...ent, id: ent.sha}))
+        const ents = entries.map((ent: any) => ({ ...ent, id: ent.sha }))
         return { cursor, entries: ents }
       }),
     ])(req);
 
   listFiles = async (path: string, recursive = false) => {
-    console.log("DELETE: API > listFiles")
     const { entries, cursor } = await this.fetchCursorAndEntries({
       url: `${this.repoURL}/contents/${encodeURIComponent(path)}`,
       params: { ref: this.branch, recursive },
@@ -401,7 +626,6 @@ export default class API {
   };
 
   traverseCursor = async (cursor: Cursor, action: string) => {
-    console.log("DELETE: API > traverseCursor")
     const link = cursor.data!.getIn(['links', action]);
     const { entries, cursor: newCursor } = await this.fetchCursorAndEntries(link);
     return {
@@ -411,16 +635,13 @@ export default class API {
   };
 
   listAllFiles = async (path: string, recursive = false, branch = this.branch) => {
-    console.log("listAllFiles", `${this.repoURL}/contents/${encodeURIComponent(path)}`)
     const entries = [];
     // eslint-disable-next-line prefer-const
-    let {entries: initialEntries, cursor } = await this.fetchCursorAndEntries({
+    let { entries: initialEntries, cursor } = await this.fetchCursorAndEntries({
       url: `${this.repoURL}/contents/${encodeURIComponent(path)}`,
       // Get the maximum number of entries per page
-      // eslint-disable-next-line @typescript-eslint/camelcase
       params: { ref: branch, per_page: 100, recursive },
     });
-    console.log("listAllFiles", { cursor, initialEntries })
     entries.push(...initialEntries);
     while (cursor && cursor.actions!.has('next')) {
       const link = cursor.data!.getIn(['links', 'next']);
@@ -441,87 +662,77 @@ export default class API {
     return branch;
   }
 
+
   async uploadAndCommit(
     items: CommitItem[],
-    { commitMessage = '', branch = this.branch, newBranch = false },
+    { commitMessage = '', branch = this.branch },
   ) {
-    const actions = items.map(item => ({
-      action: item.action,
-      // eslint-disable-next-line @typescript-eslint/camelcase
-      file_path: item.path,
-      // eslint-disable-next-line @typescript-eslint/camelcase
-      ...(item.oldPath ? { previous_path: item.oldPath } : {}),
-      ...(item.base64Content !== undefined
-        ? { content: item.base64Content, encoding: 'base64' }
-        : {}),
-    }));
-
-    const commitParams: CommitsParams = {
-      branch,
-      // eslint-disable-next-line @typescript-eslint/camelcase
-      commit_message: commitMessage,
-      actions,
-      // eslint-disable-next-line @typescript-eslint/camelcase
-      ...(newBranch ? { start_branch: this.branch } : {}),
-    };
-    if (this.commitAuthor) {
-      const { name, email } = this.commitAuthor;
-      // eslint-disable-next-line @typescript-eslint/camelcase
-      commitParams.author_name = name;
-      // eslint-disable-next-line @typescript-eslint/camelcase
-      commitParams.author_email = email;
-    }
-
-
-
     try {
-
       for (const item of items) {
-        let itemSha = ""
-        if (!item.sha) {
-          const file = await this.getFile(item.path)
-          console.log("uploadAndCommit:getFile", file)
-          console.log("uploadAndCommit:getFile:sha", file.sha)
-          itemSha = file.sha
+        if (item.action == CommitAction.UPDATE) {
+          const updateFileOpt: GiteaUpdateFileOption = {
+            sha: item.sha,
+            content: item.base64Content,
+            from_path: item.path,
+            signoff: true,
+            message: this.commitMessages.update,
+            branch: branch,
+          };
+          await this.UpdateFile(item.path, updateFileOpt);
         }
-
-        console.log("uploadAndCommit", `contents/${encodeURIComponent(item.path)}`, item, itemSha)
-        const body = {
-          branch: "master",
-          sha: itemSha,
-          ...(item.base64Content !== undefined
-            ? { content: item.base64Content, encoding: 'base64' }
-            : {}),
+        else if (item.action == CommitAction.CREATE) {
+          const createFileOpt: GiteaCreateFileOption = {
+            content: item.base64Content,
+            signoff: true,
+            message: commitMessage,
+            branch: branch,
+          };
+          await this.CreateFile(item.path, createFileOpt);
         }
+        else if (item.action == CommitAction.MOVE) {
 
-        const result = await this.requestJSON({
-          url: `${this.repoURL}/contents/${encodeURIComponent(item.path)}`,
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json; charset=utf-8' },
-          body: JSON.stringify(body),
-        });
-        console.log("uploadAndCommit:requestJSON", `contents/${encodeURIComponent(item.path)}`, result)
+          const deleteFileOpt: GiteaDeleteFileOption = {
+            sha: item.sha,
+            signoff: true,
+            branch: branch,
+            message: commitMessage,
+          };
+          await this.DeleteFile(item.oldPath, deleteFileOpt);
+
+          let createFileOpt: GiteaCreateFileOption = {
+            content: item.base64Content,
+            signoff: true,
+            message: commitMessage,
+            branch: branch,
+          };
+          await this.CreateFile(item.path, createFileOpt);
+        } else if (item.action == CommitAction.DELETE) {
+          const deleteFileOpt: GiteaDeleteFileOption = {
+            sha: item.sha,
+            signoff: true,
+            branch: branch,
+            message: commitMessage,
+          };
+          await this.DeleteFile(item.oldPath, deleteFileOpt);
+
+        } else {
+          const updateFileOpt: GiteaUpdateFileOption = {
+            sha: item.sha,
+            content: item.base64Content,
+            from_path: item.path,
+            signoff: true,
+            message: commitMessage,
+            branch: branch,
+          };
+          await this.UpdateFile(item.path, updateFileOpt);
+        }
       }
-
-
-
-      // const result = await this.requestJSON({
-      //   url: `${this.repoURL}/contents/${encodeURIComponent(item.path)}`,
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json; charset=utf-8' },
-      //   body: JSON.stringify(commitParams),
-      // });
-      // return result;
     } catch (error) {
-      const message = error.message || '';
-      if (newBranch && message.includes(`Could not update ${branch}`)) {
-        await throwOnConflictingBranches(branch, name => this.getBranch(name), API_NAME);
-      }
       throw error;
     }
   }
 
-  async getCommitItems(files: { path: string; newPath?: string }[], branch: string) {
+  async appendCommitMetadata(files: LocalFile[], branch: string) {
     const items: CommitItem[] = await Promise.all(
       files.map(async file => {
         const [base64Content, fileExists] = await Promise.all([
@@ -529,14 +740,35 @@ export default class API {
           this.isFileExists(file.path, branch),
         ]);
 
+        // Initialize metadata
         let action = CommitAction.CREATE;
-        let path = trimStart(file.path, '/');
-        let oldPath = undefined;
+        let oldPath = null
+        let sha = ""
+
+        const path = trimStart(file.path, '/');
+
+        //  if new file (i.e !oldpath && newpath) CreateFile(newpath)
+        //  if move file (i.e oldpath && newpath) DeleteFile(oldpath)
+        //  if update file (i.e oldath && (oldpath == newpath)) UpdateFile(newpath)
+        //  if delete file (i.e file.delete exists) DeleteFile(oldpath)
+
         if (fileExists) {
-          oldPath = file.newPath && path;
-          action =
-            file.newPath && file.newPath !== oldPath ? CommitAction.MOVE : CommitAction.UPDATE;
-          path = file.newPath ? trimStart(file.newPath, '/') : path;
+          // add value to oldPath and sha when its not empty
+          // fileExists object double down as the `content` if its not boolean
+          oldPath = fileExists.path
+          sha = fileExists.sha
+        }
+
+
+        // i.e oldPath = 'old', path = 'new'
+        if (oldPath && (oldPath != path)) {
+          action = CommitAction.MOVE
+        } else if (oldPath && (oldPath == path)) {
+          action = CommitAction.UPDATE
+        } else if (!oldPath) {
+          action = CommitAction.CREATE
+        } else {
+          action = CommitAction.DELETE
         }
 
         return {
@@ -544,25 +776,10 @@ export default class API {
           base64Content,
           path,
           oldPath,
+          sha,
         };
       }),
     );
-
-    // move children
-    for (const item of items.filter(i => i.oldPath && i.action === CommitAction.MOVE)) {
-      const sourceDir = dirname(item.oldPath as string);
-      const destDir = dirname(item.path);
-      const children = await this.listAllFiles(sourceDir, true, branch);
-      children
-        .filter(f => f.path !== item.oldPath)
-        .forEach(file => {
-          items.push({
-            action: CommitAction.MOVE,
-            path: file.path.replace(sourceDir, destDir),
-            oldPath: file.path,
-          });
-        });
-    }
 
     return items;
   }
@@ -574,51 +791,37 @@ export default class API {
       console.log("persistFiles:useWorkflow", slug, files)
       return this.editorialWorkflowGit(files, slug, options);
     } else {
-      const items = await this.getCommitItems(files, this.branch);
-      console.log("persistFiles:uploadAndCommit", items)
-      return this.uploadAndCommit(items, {
-        commitMessage: options.commitMessage,
+      const items = await this.appendCommitMetadata(files, this.branch);
+      await this.uploadAndCommit(items, {
+        branch: this.branch,
       });
     }
   }
 
-  deleteFiles = (paths: string[], commitMessage: string) => {
-    const branch = this.branch;
-    // eslint-disable-next-line @typescript-eslint/camelcase
-    const commitParams: CommitsParams = { commit_message: commitMessage, branch };
-    if (this.commitAuthor) {
-      const { name, email } = this.commitAuthor;
-      // eslint-disable-next-line @typescript-eslint/camelcase
-      commitParams.author_name = name;
-      // eslint-disable-next-line @typescript-eslint/camelcase
-      commitParams.author_email = email;
-    }
+  async deleteFiles(paths: string[], commitMessage: string) {
+    let pItems = (paths.map(async (path) => {
+      const content = await this.GetContent(path, this.branch)
+      return { sha: content.sha, oldPath: path, path: path, action: CommitAction.DELETE }
+    }));
 
-    const items = paths.map(path => ({ path, action: CommitAction.DELETE }));
-    console.log("deleteFiles:uploadAndCommit", items)
+    const items = await Promise.all(pItems);
     return this.uploadAndCommit(items, {
       commitMessage,
     });
   };
 
-  async getPullRequests(sourceBranch?: string) {
+  async getPullRequests(opt?: GiteaListPullRequestsOptions) {
     const pullRequests: GiteaPullRequest[] = await this.requestJSON({
       url: `${this.repoURL}/pulls`,
-      params: {
-        state: 'opened',
-        // TODO: https://gitea.brankas.dev/api/swagger#/issue/issueListLabels
-        // labels: [],
-        // eslint-disable-next-line @typescript-eslint/camelcase
-        target_branch: this.branch,
-        // eslint-disable-next-line @typescript-eslint/camelcase
-        ...(sourceBranch ? { source_branch: sourceBranch } : {}),
-      },
+      headers: { 'Content-Type': APPLICATION_JSON },
+      params: opt,
     });
 
     return pullRequests.filter(
       mr =>
-        mr.base.ref.startsWith(CMS_BRANCH_PREFIX) &&
-        mr.labels.some(l => isCMSLabel(l, this.cmsLabelPrefix)),
+        mr.head.label.startsWith(CMS_BRANCH_PREFIX)
+      // uncomment if we've created labels
+      // mr.labels.some(l => isCMSLabel(l, this.cmsLabelPrefix)),
     );
   }
 
@@ -627,29 +830,29 @@ export default class API {
       '%c Checking for Unpublished entries',
       'line-height: 30px;text-align: center;font-weight: bold',
     );
-
-    const pullRequests = await this.getPullRequests();
-    const branches = pullRequests.map(mr => mr.source_branch);
+    const getPRsOpt: GiteaListPullRequestsOptions = {
+      state: "open"
+    }
+    const pullRequests = await this.getPullRequests(getPRsOpt);
+    const branches = pullRequests.map(pull => pull.head.label);
 
     return branches;
   }
 
   async getFileId(path: string, branch: string) {
-    const request = await this.request({
-      url: `${this.repoURL}/contents/${encodeURIComponent(path)}`,
-      params: { ref: branch },
-    });
-
-    const blobId = request.headers.get('X-Gitea-Blob-Id') as string;
-    return blobId;
-  }
-
-  async isFileExists(path: string, branch: string) {
-    const fileExists = await this.requestText({
+    let sha: string
+    const content = await this.requestJSON({
       url: `${this.repoURL}/contents/${encodeURIComponent(path)}`,
       params: { ref: branch },
     })
-      .then(() => true)
+    sha = content.sha
+    return sha;
+  }
+
+  // checks if file exists in repo already
+  // so we know whether to CreateFile or UpdateFile
+  async isFileExists(path: string, branch: string) {
+    const fileExists = await this.GetContent(path, branch)
       .catch(error => {
         if (error instanceof APIError && error.status === 404) {
           return false;
@@ -660,57 +863,62 @@ export default class API {
     return fileExists;
   }
 
+  // gets a pull request from a specific head.branch
   async getBranchPullRequest(branch: string) {
-    const pulls = await this.getPullRequests(branch);
+    const getPRsOpt: GiteaListPullRequestsOptions = {
+      state: "open"
+    }
+    const pulls = await this.getPullRequests(getPRsOpt);
     if (pulls.length <= 0) {
       throw new EditorialWorkflowError('content is not under editorial workflow', true);
     }
 
-    return pulls[0];
+    const filtered = pulls.filter(pull => pull.head.label == branch)
+    if (filtered.length == 0) {
+      return null
+    }
+
+    return filtered[0];
+
   }
 
-  async getDifferences(to: string, from = this.branch) {
-    if (to === from) {
-      return [];
-    }
-    const result: { diffs: GiteaCommitDiff[] } = await this.requestJSON({
-      // TODO: maybe /repos/{owner}/{repo}/pulls/{index}.diff ?
-      url: `${this.repoURL}/repository/compare`,
+  async getPullDifferences(index: any) {
+    const rawDiff = await this.requestText({
+      url: `${this.repoURL}/pulls/${index}.diff`,
       params: {
-        from,
-        to,
+        binary: false,
       },
     });
 
-    if (result.diffs.length >= 1000) {
-      throw new APIError('Diff limit reached', null, API_NAME);
-    }
-
-    return result.diffs.map(d => {
-      let status = 'modified';
-      if (d.new_file) {
-        status = 'added';
-      } else if (d.deleted_file) {
-        status = 'deleted';
-      } else if (d.renamed_file) {
-        status = 'renamed';
-      }
+    const diffs = gd.parse(rawDiff).map(d => {
+      const oldPath = d.oldPath?.replace(/b\//, '') || '';
+      const newPath = d.newPath?.replace(/b\//, '') || '';
+      const path = newPath || (oldPath as string);
       return {
-        status,
-        oldPath: d.old_path,
-        newPath: d.new_path,
-        newFile: d.new_file,
-        path: d.new_path || d.old_path,
-        binary: d.diff.startsWith('Binary') || /.svg$/.test(d.new_path),
+        oldPath,
+        newPath,
+        status: d.type as string,
+        newFile: (d.type as string) === 'added',
+        path,
+        binary: d.isBinary || /.svg$/.test(path) || d.hunks.length == 0,
       };
     });
+
+    return diffs.filter((d) => d.binary == false);
   }
 
   async retrieveUnpublishedEntryData(contentKey: string) {
     const { collection, slug } = parseContentKey(contentKey);
     const branch = branchFromContentKey(contentKey);
     const pullRequest = await this.getBranchPullRequest(branch);
-    const diffs = await this.getDifferences(pullRequest.sha);
+
+    // If no PRs are retrieved, we return null
+    // This will allow the backend to choose from `publishedEntries` instead
+    if (!pullRequest) {
+      return null
+    }
+
+    const diffs = await this.getPullDifferences(pullRequest.number);
     const diffsWithIds = await Promise.all(
       diffs.map(async d => {
         const { path, newFile } = d;
@@ -718,73 +926,110 @@ export default class API {
         return { id, path, newFile };
       }),
     );
-    const label = pullRequest.labels.find(l => isCMSLabel(l, this.cmsLabelPrefix)) as string;
-    const status = labelToStatus(label, this.cmsLabelPrefix);
+
+    const label = pullRequest.labels.find(l => isCMSLabel(l.name, this.cmsLabelPrefix));
+    const status = labelToStatus(label.name, this.cmsLabelPrefix);
     const updatedAt = pullRequest.updated_at;
+    const author = pullRequest.user.full_name
     return {
       collection,
       slug,
       status,
       diffs: diffsWithIds,
       updatedAt,
+      author,
     };
   }
 
-  async rebasePullRequest(pullRequest: GiteaPullRequest) {
-    let rebase: GiteaMergeRebase = await this.requestJSON({
-      method: 'PUT',
-      url: `${this.repoURL}/pulls/${pullRequest.iid}/rebase`,
+  // GetCommitBySHA get the metadata and contents of existing file in repository
+  async GetCommitBySHA(commitID: string) {
+    const response = await this.requestJSON({
+      method: 'GET',
+      url: `${this.repoURL}/git/commits/${commitID}`,
     });
-
-    let i = 1;
-    while (rebase.rebase_in_progress) {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      rebase = await this.requestJSON({
-        url: `${this.repoURL}/pulls/${pullRequest.iid}`,
-        params: {
-          // eslint-disable-next-line @typescript-eslint/camelcase
-          include_rebase_in_progress: true,
-        },
-      });
-      if (!rebase.rebase_in_progress || i > 10) {
-        break;
-      }
-      i++;
-    }
-
-    if (rebase.rebase_in_progress) {
-      throw new APIError('Timed out rebasing merge request', null, API_NAME);
-    } else if (rebase.merge_error) {
-      throw new APIError(`Rebase error: ${rebase.merge_error}`, null, API_NAME);
-    }
+    return response;
   }
 
-  async createPullRequest(branch: string, commitMessage: string, status: string) {
+  // GetContent get the metadata and contents of existing file in repository
+  async GetContent(filepath: string, ref?: string) {
+    const response = await this.requestJSON({
+      method: 'GET',
+      url: `${this.repoURL}/contents/${encodeURIComponent(filepath)}`,
+      params: { ref: ref }
+    });
+    return response;
+  }
+
+  // GetBlob given the sha
+  async GetBlob(sha: string) {
+    const response = await this.requestJSON({
+      method: 'GET',
+      url: `${this.repoURL}/git/blobs/${sha}`,
+    });
+    return response;
+  }
+
+  // CreateFile uploads new file to repository
+  async CreateFile(filepath: string, opt: GiteaCreateFileOption) {
+    const response = await this.requestJSON({
+      method: 'POST',
+      url: `${this.repoURL}/contents/${encodeURIComponent(filepath)}`,
+      headers: { 'Content-Type': APPLICATION_JSON },
+      body: JSON.stringify(opt),
+    });
+    return response;
+  }
+
+  // UpdateFile updates file in repository
+  async UpdateFile(filepath: string, opt: GiteaUpdateFileOption) {
+    const response = await this.requestJSON({
+      method: 'PUT',
+      url: `${this.repoURL}/contents/${encodeURIComponent(filepath)}`,
+      headers: { 'Content-Type': APPLICATION_JSON },
+      body: JSON.stringify(opt),
+    });
+    return response;
+  }
+
+
+  // DeleteFile updates file in repository
+  async DeleteFile(filepath: string, opt: GiteaDeleteFileOption) {
+    const response = await this.requestJSON({
+      method: 'DELETE',
+      url: `${this.repoURL}/contents/${encodeURIComponent(filepath)}`,
+      headers: { 'Content-Type': APPLICATION_JSON },
+      body: JSON.stringify(opt),
+    });
+    return response;
+  }
+
+  // Creates branch 
+  async createBranch(opt: GiteaCreateBranchOption) {
     await this.requestJSON({
       method: 'POST',
-      headers: { 'Content-Type': 'application/json; charset=utf-8' },
-      url: `${this.repoURL}/pulls`,
+      url: `${this.repoURL}/branches`,
+      headers: { 'Content-Type': APPLICATION_JSON },
+      body: JSON.stringify(opt),
+    });
+  }
 
-      params: {
-        base: ,
-        body: DEFAULT_PR_BODY,
-        title: commitMessage,
-        head: ,
-        labels: [5], // TODO: hardcoded. make dynamic
-      },
-      // params: {
-      //   // eslint-disable-next-line @typescript-eslint/camelcase
-      //   source_branch: branch,
-      //   // eslint-disable-next-line @typescript-eslint/camelcase
-      //   target_branch: this.branch,
-      //   title: commitMessage,
-      //   description: DEFAULT_PR_BODY,
-      //   labels: statusToLabel(status, this.cmsLabelPrefix),
-      //   // eslint-disable-next-line @typescript-eslint/camelcase
-      //   remove_source_branch: true,
-      //   squash: this.squashMerges,
-      // },
-    } as any);
+  // Delete branch 
+  async deleteBranch(branch: string) {
+    await this.request({
+      method: 'DELETE',
+      url: `${this.repoURL}/branches/${branch}`,
+    });
+  }
+
+
+  // Creates pull request https://try.gitea.io/api/swagger#/repository/repoCreatePullRequest
+  async createPullRequest(opt: GiteaCreatePullRequestOption) {
+    await this.requestJSON({
+      method: 'POST',
+      url: `${this.repoURL}/pulls`,
+      headers: { 'Content-Type': APPLICATION_JSON },
+      body: JSON.stringify(opt),
+    });
   }
 
   async editorialWorkflowGit(
@@ -796,47 +1041,72 @@ export default class API {
     const branch = branchFromContentKey(contentKey);
     const unpublished = options.unpublished || false;
     if (!unpublished) {
-      const items = await this.getCommitItems(files, this.branch);
-      console.log("editorialWorkflowGit:uploadAndCommit", items, branch)
+      let createBranchOpt: GiteaCreateBranchOption = {
+        new_branch_name: branch,
+        old_branch_name: this.branch,
+      };
+      await this.createBranch(createBranchOpt)
+
+      const items = await this.appendCommitMetadata(files, this.branch);
       await this.uploadAndCommit(items, {
         commitMessage: options.commitMessage,
-        branch,
-        newBranch: true,
+        branch: branch,
       });
-      await this.createPullRequest(
-        branch,
-        options.commitMessage,
-        options.status || this.initialWorkflowStatus,
-      );
+
+      const repoLabels: GiteaLabel[] = await this.requestJSON({
+        method: 'GET',
+        url: `${this.repoURL}/labels`,
+      });
+
+      const status = options.status || this.initialWorkflowStatus
+      const lname = statusToLabel(status, this.cmsLabelPrefix)
+      const cmsLabel = await repoLabels.filter(l => l.name == lname)
+
+      const createPullRequestOpt: GiteaCreatePullRequestOption = {
+        head: branch,
+        base: this.branch, // master
+        title: options.commitMessage,
+        body: DEFAULT_PR_BODY,
+        labels: [cmsLabel[0].id],
+
+      };
+      await this.createPullRequest(createPullRequestOpt);
     } else {
-      const pullRequest = await this.getBranchPullRequest(branch);
-      await this.rebasePullRequest(pullRequest);
-      const [items, diffs] = await Promise.all([
-        this.getCommitItems(files, branch),
-        this.getDifferences(branch),
-      ]);
+      const pullRequest: GiteaPullRequest = await this.getBranchPullRequest(branch)
+
       // mark files for deletion
-      for (const diff of diffs.filter(d => d.binary)) {
-        if (!items.some(item => item.path === diff.path)) {
-          items.push({ action: CommitAction.DELETE, path: diff.newPath });
+      const diffs = await this.getPullDifferences(pullRequest.number);
+      const toDelete: DeleteEntry[] = [];
+      for (const diff of diffs.filter(d => d.binary && d.status !== 'deleted' && d.path)) {
+        if (!files.some(file => file.path === diff.path)) {
+          toDelete.push({ path: diff.path, action: CommitAction.DELETE });
         }
       }
 
-      console.log("editorialWorkflowGit:uploadAndCommit:unpublished", items, branch)
-      await this.uploadAndCommit(items, {
+      const items = await this.appendCommitMetadata(files, branch);
+      await this.uploadAndCommit([...items, ...toDelete], {
         commitMessage: options.commitMessage,
         branch,
       });
+
     }
   }
 
-  async updatePullRequestLabels(pullRequest: GiteaPullRequest, labels: string[]) {
+  async updatePullRequest(index: any, opt: GiteaEditPullRequestOption) {
     await this.requestJSON({
-      method: 'PUT',
-      url: `${this.repoURL}/pulls/${pullRequest.iid}`,
-      params: {
-        labels: labels.join(','),
-      },
+      method: 'PATCH',
+      url: `${this.repoURL}/pulls/${index}`,
+      headers: { 'Content-Type': APPLICATION_JSON },
+      body: JSON.stringify(opt),
+    });
+  }
+
+  async createLabel(opt: GiteaCreateLabelOption) {
+    return await this.requestJSON({
+      method: 'POST',
+      url: `${this.repoURL}/labels`,
+      headers: { 'Content-Type': APPLICATION_JSON },
+      body: JSON.stringify(opt),
     });
   }
 
@@ -845,26 +1115,72 @@ export default class API {
     const branch = branchFromContentKey(contentKey);
     const pullRequest = await this.getBranchPullRequest(branch);
 
+
+    // all the old labels that are not CMS label + label from newStatus
     const labels = [
-      ...pullRequest.labels.filter(label => !isCMSLabel(label, this.cmsLabelPrefix)),
+      ...pullRequest.labels
+        .filter(label => !isCMSLabel(label.name, this.cmsLabelPrefix))
+        .map(l => l.name),
       statusToLabel(newStatus, this.cmsLabelPrefix),
     ];
-    await this.updatePullRequestLabels(pullRequest, labels);
+
+
+    // get all existing labels
+    const repoLabels: GiteaLabel[] = await this.requestJSON({
+      method: 'GET',
+      url: `${this.repoURL}/labels`,
+    });
+
+    // if new status doesnt exist, create label for it
+    const newLabel = statusToLabel(newStatus, this.cmsLabelPrefix)
+    const isAlreadyExists = repoLabels.find((l) => {
+      return l.name == newLabel
+    })
+
+    const intLabels: any = []
+    if (!isAlreadyExists) {
+      const opt: GiteaCreateLabelOption = {
+        color: "#00aabb",
+        name: newLabel,
+        description: `Tagging cms entries of status ${newStatus}`
+      }
+      // create label & push its id to intLabels
+      const respLabel: GiteaLabel = await this.createLabel(opt)
+      intLabels.push(respLabel.id)
+    }
+
+
+
+    // push old corresponding id to `intLabels`
+    labels.forEach(label => {
+      const matchingLabel = repoLabels.find((l) => {
+        return l.name == label
+      })
+      intLabels.push(matchingLabel.id);
+    });
+
+    const editPullRequestOpt: GiteaEditPullRequestOption = {
+      labels: intLabels,
+    }
+    await this.updatePullRequest(pullRequest.number, editPullRequestOpt);
   }
 
-  async mergePullRequest(pullRequest: GiteaPullRequest) {
-    await this.requestJSON({
-      method: 'PUT',
-      url: `${this.repoURL}/pulls/${pullRequest.iid}/merge`,
-      params: {
-        // eslint-disable-next-line @typescript-eslint/camelcase
-        merge_commit_message: MERGE_COMMIT_MESSAGE,
-        // eslint-disable-next-line @typescript-eslint/camelcase
-        squash_commit_message: MERGE_COMMIT_MESSAGE,
-        squash: this.squashMerges,
-        // eslint-disable-next-line @typescript-eslint/camelcase
-        should_remove_source_branch: true,
-      },
+  async mergePullRequest(index: any, opt: GiteaMergePullRequestOption) {
+    await this.request({
+      method: 'POST',
+      url: `${this.repoURL}/pulls/${index}/merge`,
+      headers: { 'Content-Type': APPLICATION_JSON },
+      body: JSON.stringify(opt),
+    });
+  }
+
+  async autoApproveMergeRequest(index: any, opt: GiteaCreatePullReviewOpt) {
+    await this.request({
+      method: 'POST',
+      url: `${this.repoURL}/pulls/${index}/reviews`,
+      headers: { 'Content-Type': APPLICATION_JSON },
+      body: JSON.stringify(opt),
+      params: { token: this.approverToken },
     });
   }
 
@@ -872,18 +1188,36 @@ export default class API {
     const contentKey = generateContentKey(collectionName, slug);
     const branch = branchFromContentKey(contentKey);
     const pullRequest = await this.getBranchPullRequest(branch);
-    await this.mergePullRequest(pullRequest);
+
+    // If approver token is not empty, it will automatically use that for review
+    if (this.approverToken != "") {
+      const createPullReviewOpt: GiteaCreatePullReviewOpt = {
+        body: `Automatic review from Netlify CMS: Change ${collectionName} “${slug}”`,
+        event: `APPROVED`,
+      }
+      await this.autoApproveMergeRequest(pullRequest.number, createPullReviewOpt)
+    }
+
+    const mergePullRequestOpt: GiteaMergePullRequestOption = {
+      Do: "squash",
+      MergeTitleField: `Netlify CMS: Change ${collectionName} “${slug}”`,
+      MergeMessageField: `${this.commitMessages?.merge}`,
+    }
+    await this.mergePullRequest(pullRequest.number, mergePullRequestOpt);
+    await this.deleteBranch(branch)
   }
 
   async closePullRequest(pullRequest: GiteaPullRequest) {
-    await this.requestJSON({
-      method: 'PUT',
-      url: `${this.repoURL}/pulll/${pullRequest.iid}`,
-      params: {
-        // eslint-disable-next-line @typescript-eslint/camelcase
-        state_event: 'close',
-      },
-    });
+    // // StateOpen pr/issue is opend
+    // StateOpen StateType = "open"
+    // // StateClosed pr/issue is closed
+    // StateClosed StateType = "closed"
+    // // StateAll is all
+    // StateAll StateType = "all"
+    const editPullRequestOpt: GiteaEditPullRequestOption = {
+      state: "closed",
+    }
+    return await this.updatePullRequest(pullRequest.number, editPullRequestOpt)
   }
 
   async getDefaultBranch() {
@@ -901,49 +1235,46 @@ export default class API {
     return refs.some(r => r.name === branch);
   }
 
-  async deleteBranch(branch: string) {
-    await this.request({
-      method: 'DELETE',
-      url: `${this.repoURL}/branches/${encodeURIComponent(branch)}`,
-    });
-  }
-
   async deleteUnpublishedEntry(collectionName: string, slug: string) {
     const contentKey = generateContentKey(collectionName, slug);
     const branch = branchFromContentKey(contentKey);
     const pullRequest = await this.getBranchPullRequest(branch);
-    await this.closePullRequest(pullRequest);
-    await this.deleteBranch(branch);
-  }
+    const re = await this.closePullRequest(pullRequest);
+    const re2 = await this.deleteBranch(branch);
 
-  async getPullRequestStatues(pullRequest: GiteaPullRequest, branch: string) {
-    const statuses: GiteaCommitStatus[] = await this.requestJSON({
-      url: `${this.repoURL}/commits/${pullRequest.sha}/statuses`,
-      params: {
-        ref: branch,
-      },
-    });
-    return statuses;
-  }
-
-  async getStatuses(collectionName: string, slug: string) {
-    const contentKey = generateContentKey(collectionName, slug);
-    const branch = branchFromContentKey(contentKey);
-    const pullRequest = await this.getBranchPullRequest(branch);
-    const statuses: GiteaCommitStatus[] = await this.getPullRequestStatues(pullRequest, branch);
-    // eslint-disable-next-line @typescript-eslint/camelcase
-    return statuses.map(({ name, status, target_url }) => ({
-      context: name,
-      state: status === GiteaCommitStatuses.Success ? PreviewState.Success : PreviewState.Other,
-      // eslint-disable-next-line @typescript-eslint/camelcase
-      target_url,
-    }));
   }
 
   async getUnpublishedEntrySha(collection: string, slug: string) {
     const contentKey = generateContentKey(collection, slug);
     const branch = branchFromContentKey(contentKey);
     const pullRequest = await this.getBranchPullRequest(branch);
-    return pullRequest.sha;
+    return pullRequest.head.sha;
+  }
+
+
+  /**
+ * Retrieve statuses for a given SHA. Unrelated to the editorial workflow
+ * concept of entry "status". Useful for things like deploy preview links.
+ */
+  async getStatuses(collectionName: string, slug: string) {
+    const contentKey = generateContentKey(collectionName, slug);
+    const branch = branchFromContentKey(contentKey);
+    const pullRequest = await this.getBranchPullRequest(branch);
+    const statuses: GiteaCommitStatus[] = await this.getPullRequestStatues(pullRequest, branch);
+    return statuses.map(({ name, status, target_url }) => ({
+      context: name,
+      state: status === GiteaCommitStatuses.Success ? PreviewState.Success : PreviewState.Other,
+      target_url,
+    }));
+  }
+
+  async getPullRequestStatues(pullRequest: GiteaPullRequest, branch: string) {
+    const statuses: GiteaCommitStatus[] = await this.requestJSON({
+      url: `${this.repoURL}/commits/${encodeURIComponent(branch)}/statuses`,
+      params: {
+        ref: branch,
+      },
+    });
+    return statuses;
   }
 }

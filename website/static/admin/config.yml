@@ -3,6 +3,7 @@ backend:
   repo: netlify/netlify-cms
   squash_merges: true
   open_authoring: true
+  approver_token: "some-access-token-value"
 
 local_backend: true
 

@@ -357,6 +357,7 @@ declare module 'netlify-cms-core' {
     auth_endpoint?: string;
     cms_label_prefix?: string;
     squash_merges?: boolean;
+    approver_token?: string;
     proxy_url?: string;
     commit_messages?: {
       create?: string;
@@ -365,6 +366,7 @@ declare module 'netlify-cms-core' {
       uploadMedia?: string;
       deleteMedia?: string;
       openAuthoring?: string;
+      merge?: string;
     };
   }
 
